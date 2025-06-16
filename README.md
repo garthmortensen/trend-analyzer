@@ -1,4 +1,4 @@
-# Trend Analyzer
+# Trend Decomposition Agent
 
 This repository contains a Google Colab or Jupyter notebook that shows how to use a large language model (LLM) to analyze period‑over‑period trends in your own data. In the included example, we want to know: how did health insurance claims change from one period (early 2023) to another period (early 2024), and what were the underlying drivers? We need two data cubes as input: one data cube contains the "descriptor" data (claims, with all imaginable drivers loaded into columns), the other data cube contains the "normalizer" data (membership, with all imaginable membership segments loaded into columns).
 

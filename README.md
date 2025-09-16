@@ -29,4 +29,67 @@ The notebook lets you:
 - Add or remove tool wrappers to expose whatever data queries or visualization functions are useful for your analysis.
 - Run the notebook and monitor the agent as it iteratively queries your data and records findings.
 
-**Important:** This isa proof of concept and may produce inaccurate or incomplete interpretations. Always review the generated analysis before relying on it.
+**Important:** This is a proof of concept and may produce inaccurate or incomplete interpretations. Always review the generated analysis before relying on it.
+
+## Usage Notes & Caveats
+* Input your bigqquery project IDs for permissions/running queries and storage of output tables
+* Bring your own data (modify the YAML file and SQL generation fuctions)
+* This is a POC and still has bugs to work out, use with caution
+* The bot's analysis can be incorrect, and it often makes non-useful recommendations / interpretations of data
+
+## Top-down flowchart
+
+The project workflow is illustrated by the following flowchart.
+
+```mermaid
+graph TD
+    subgraph "Phase 1: Setup and Data Prep"
+        direction LR
+        A[Start] --> B{Initialize<br>Notebook};
+        B --> C[Install Dependencies<br>& Authenticate];
+        C --> D[Define YAML<br>Configuration];
+        D -- "Defines dimensions,<br>metrics, tables" --> E{Generate SQL};
+        E --> F["Execute BigQuery SQL to<br>Generate Analysis Tables"];
+        F --> G["Create Descriptor (Claims)<br>and Norm (Membership) Tables"];
+    end
+
+    subgraph "Phase 2: Agent & Tool Definition"
+        direction LR
+        H{Define<br>AI Agent} --> I["Set Agent's System<br>Prompt & Analysis Plan"];
+        I --> J[Define Data<br>Access Functions];
+        J -- Wraps --> K{Create<br>Agent Tools};
+        K --> L[Data Analysis<br>Tools];
+        K --> M[Reporting<br>Tools];
+    end
+
+    subgraph "Phase 3: Iterative Analysis Loop"
+        direction LR
+        N{Start Analysis<br>Loop} --> O{"Agent: Formulate<br>Hypothesis (PLAN)"};
+        O --> P{"Agent: Select<br>Tool(s)"};
+        P --> Q["Execute Tool Call<br>e.g., get_trend_data(...)"];
+        Q --> R{Get Results<br>from BigQuery};
+        R --> S{"Agent: Interpret<br>Results (REFLECT)"};
+        S --> T{Update Report};
+        T --> U[Append to<br>Google Doc];
+        U --> V{More<br>Iterations?};
+        V -- Yes --> O;
+    end
+
+    subgraph "Phase 4: Finalization"
+        direction LR
+        W{Synthesize<br>Findings} --> X["Generate Final<br>Summary &<br>Recommendations"];
+        X --> Y["Write Final Report<br>to Google Doc"];
+        Y --> Z[End];
+    end
+
+    G --> H;
+    M --> N;
+    L --> N;
+    V -- No --> W;
+
+
+    style B fill:#944,stroke:#333,stroke-width:2px
+    style H fill:#944,stroke:#333,stroke-width:2px
+    style N fill:#944,stroke:#333,stroke-width:2px
+    style W fill:#944,stroke:#333,stroke-width:2px
+```

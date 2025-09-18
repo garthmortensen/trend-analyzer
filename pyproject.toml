@@ -1,7 +1,15 @@
+# !/usr/bin/env toml
+#
+# === FILE META OPENING ===
+# file: ./trend-analyzer/pyproject.toml
+# role: configuration
+# desc: minimal uv project configuration for trend analyzer skeleton
+# === FILE META CLOSING ===
+
 [project]
 name = "trend-analyzer"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-powered health insurance claims trend analysis (skeleton)"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -22,5 +30,3 @@ dependencies = [
 [tool.commitizen]
 name = "cz_conventional_commits"
 tag_format = "v$version"
-version_provider = "pep621"
-update_changelog_on_bump = true

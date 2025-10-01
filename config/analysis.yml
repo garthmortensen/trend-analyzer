@@ -1,0 +1,60 @@
+#!/usr/bin/env yaml
+#
+# === FILE META OPENING ===
+# file: ./trend-analyzer/config/analysis.yml
+# role: configuration
+# desc: analysis configuration - business logic, filters, dimensions, parameters
+# === FILE META CLOSING ===
+
+# Analysis configuration for Trend Analyzer
+# Contains business logic settings for how analysis is performed
+
+# What operations to run (can run multiple at once)
+build_cubes: false
+run_analysis: true
+test_data: false
+
+# Cube building configuration (used when build_cubes = true)
+cube_building:
+  force_rebuild: false
+  validate_data: true
+
+# Analysis configuration (used when mode = "analyze")
+analyze:
+  group_by_dimensions:
+    - "state"
+    - "year"
+  filters:
+    - dimension_name: "state"
+      operator: "IN"
+      value: ["CA", "NY", "TX"]
+    - dimension_name: "year"
+      operator: ">="
+      value: 2023
+  top_n: 100
+  include_totals: true
+  
+# Trend analysis parameters
+trends:
+  time_periods:
+    - "monthly"
+    - "quarterly"
+    - "yearly"
+  comparison_type: "year_over_year"  # year_over_year, period_over_period
+  minimum_data_points: 3
+  confidence_threshold: 0.95
+
+# Metrics to calculate
+metrics:
+  primary:
+    - "allowed"
+    - "member_months"
+  secondary:
+    - "per_member_per_month"
+    - "utilization_rate"
+  
+# Thresholds for flagging unusual trends
+alerts:
+  significant_change_pct: 15.0  # Flag changes over 15%
+  outlier_threshold: 2.0        # Standard deviations from mean
+  minimum_sample_size: 100      # Minimum records for reliable analysis

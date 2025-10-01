@@ -31,10 +31,14 @@ def load_config():
     
     # Return combined config for backward compatibility
     combined_config = {
-        "mode": config.get_mode(),
         "database": config.get_database_config(),
         "output": config.get_output_config(),
-        "analyze": config.get_analysis_config()
+        "analyze": config.get_analysis_config(),
+        "cube_building": config.get_cube_building_config(),
+        # Include the boolean flags
+        "run_analysis": config.should_run_analysis(),
+        "build_cubes": config.should_build_cubes(),
+        "test_data": config.should_test_data()
     }
     
     return combined_config
@@ -67,7 +71,7 @@ def execute_cube_build(config_data):
     """Execute cube building with PostgreSQL"""
     print("\nEXECUTING: Table Creation (PostgreSQL)")
     
-    cube_config = config_data.get("build_cubes", {})
+    cube_config = config_data.get("cube_building", {})
     paths_config = config_data.get("paths", {})
     db_config = config_data.get("database", {})
     
@@ -120,21 +124,31 @@ def main():
         print("Failed to load configuration. Exiting.")
         return
     
-    # Get the mode from config
-    mode = config_data.get("mode", "analyze")
-    print(f"Execution mode: {mode}")
+    # Check which operations to run
+    run_analysis = config_data.get("run_analysis", True)
+    build_cubes = config_data.get("build_cubes", False)
+    test_data = config_data.get("test_data", False)
     
-    # Route to appropriate execution
-    if mode == "analyze":
-        execute_analysis(config_data)
-    elif mode == "build-cubes":
-        execute_cube_build(config_data)
-    elif mode == "test-data":
-        execute_data_tests(config_data)
-    else:
-        print(f"Unknown mode: {mode}")
-        print("Valid modes: analyze, build-cubes, test-data")
+    operations = []
+    if run_analysis: operations.append("analysis")
+    if build_cubes: operations.append("cube building")
+    if test_data: operations.append("data testing")
+    
+    if not operations:
+        print("No operations enabled. Enable at least one in config/analysis.yml")
         return
+    
+    print(f"Will run: {', '.join(operations)}")
+    
+    # Execute enabled operations
+    if run_analysis:
+        execute_analysis(config_data)
+    
+    if build_cubes:
+        execute_cube_build(config_data)
+    
+    if test_data:
+        execute_data_tests(config_data)
     
     print("\nExecution completed successfully")
 

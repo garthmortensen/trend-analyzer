@@ -68,15 +68,34 @@ class Config:
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "placeholder-key")
         
         if self.analysis_config:
-            print(f"Config loaded with mode: {self.analysis_config.get('mode', 'unknown')}")
+            operations = []
+            if self.analysis_config.get("run_analysis", True):
+                operations.append("analysis")
+            if self.analysis_config.get("build_cubes", False):
+                operations.append("cubes")
+            if self.analysis_config.get("test_data", False):
+                operations.append("testing")
+            print(f"Config loaded with operations: {', '.join(operations) if operations else 'none'}")
         else:
             print("Config failed to load")
     
-    def get_mode(self):
-        """Get execution mode from analysis config"""
+    def should_run_analysis(self):
+        """Check if analysis should be run"""
         if not self.analysis_config:
-            return "analyze"
-        return self.analysis_config.get("mode", "analyze")
+            return True
+        return self.analysis_config.get("run_analysis", True)
+    
+    def should_build_cubes(self):
+        """Check if cubes should be built"""
+        if not self.analysis_config:
+            return False
+        return self.analysis_config.get("build_cubes", False)
+    
+    def should_test_data(self):
+        """Check if data testing should be run"""
+        if not self.analysis_config:
+            return False
+        return self.analysis_config.get("test_data", False)
     
     def get_database_config(self):
         """Get database configuration"""
@@ -90,6 +109,11 @@ class Config:
             return {}
         return self.infrastructure_config.get("output", {})
     
+    def get_output_dir(self):
+        """Get output directory"""
+        output_config = self.get_output_config()
+        return output_config.get("dir", "./output")
+    
     def get_ai_config(self):
         """Get AI configuration"""
         if not self.infrastructure_config:
@@ -102,11 +126,11 @@ class Config:
             return {}
         return self.analysis_config.get("analyze", {})
     
-    def get_build_cubes_config(self):
+    def get_cube_building_config(self):
         """Get cube building configuration"""
         if not self.analysis_config:
             return {}
-        return self.analysis_config.get("build_cubes", {})
+        return self.analysis_config.get("cube_building", {})
     
     def get_trends_config(self):
         """Get trends configuration"""
@@ -148,9 +172,17 @@ class Config:
             errors.append("Dimensions config file not loaded")
         
         if self.analysis_config:
-            mode = self.analysis_config.get("mode")
-            if mode not in ["analyze", "build-cubes", "test-data"]:
-                errors.append(f"Invalid mode: {mode}")
+            # Validate boolean flags
+            run_analysis = self.analysis_config.get("run_analysis")
+            build_cubes = self.analysis_config.get("build_cubes")
+            test_data = self.analysis_config.get("test_data")
+            
+            if not isinstance(run_analysis, bool) and run_analysis is not None:
+                errors.append("run_analysis must be true or false")
+            if not isinstance(build_cubes, bool) and build_cubes is not None:
+                errors.append("build_cubes must be true or false")
+            if not isinstance(test_data, bool) and test_data is not None:
+                errors.append("test_data must be true or false")
         
         if errors:
             print(f"Configuration errors found: {len(errors)}")

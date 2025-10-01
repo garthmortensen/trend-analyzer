@@ -45,7 +45,7 @@ class PostgreSQLClient:
             
             # Test connection
             with self.engine.connect() as conn:
-                result = conn.execute(text("SELECT version()"))
+                result = conn.execute(text("select version()"))
                 version = result.fetchone()[0]
                 print(f"[PLACEHOLDER] Connected successfully: {version[:50]}...")
             
@@ -96,16 +96,16 @@ class PostgreSQLClient:
     
     def table_exists(self, table_name: str, schema: str = "public") -> bool:
         """Check if table exists"""
-        sql = """
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = %s 
-            AND table_name = %s
+        sql = f"""
+        select exists (
+            select from information_schema.tables 
+            where table_schema = '{schema}' 
+            and table_name = '{table_name}'
         );
         """
         
         try:
-            df = self.run_query(sql, {"schema": schema, "table_name": table_name})
+            df = self.run_query(sql)
             exists = df.iloc[0, 0] if not df.empty else False
             print(f"[PLACEHOLDER] Table {schema}.{table_name} exists: {exists}")
             return exists
@@ -116,14 +116,14 @@ class PostgreSQLClient:
     
     def get_table_info(self, table_name: str, schema: str = "public") -> pd.DataFrame:
         """Get table column information"""
-        sql = """
-        SELECT column_name, data_type, is_nullable
-        FROM information_schema.columns
-        WHERE table_schema = %s AND table_name = %s
-        ORDER BY ordinal_position;
+        sql = f"""
+        select column_name, data_type, is_nullable
+        from information_schema.columns
+        where table_schema = '{schema}' and table_name = '{table_name}'
+        order by ordinal_position;
         """
         
-        return self.run_query(sql, {"schema": schema, "table_name": table_name})
+        return self.run_query(sql)
 
 # Global client instance
 _postgres_client: Optional[PostgreSQLClient] = None

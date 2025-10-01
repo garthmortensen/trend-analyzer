@@ -3,14 +3,15 @@
 # === FILE META OPENING ===
 # file: ./trend-analyzer/src/trend_analyzer/config.py
 # role: configuration
-# desc: configuration loader that handles both runtime config and dimensions schema
+# desc: configuration loader that handles infrastructure, analysis, and dimensions configs
 # === FILE META CLOSING ===
 
 import os
 import yaml
 from pathlib import Path
+from .logging_config import info, debug, error, log_config
 
-print("Loading config module...")
+info("Loading config module...")
 
 def load_config_files():
     """Load infrastructure.yml, analysis.yml, and dimensions.yml from config directory"""
@@ -25,49 +26,59 @@ def load_config_files():
     
     # Load infrastructure config
     if not infrastructure_config_path.exists():
-        print(f"[ERROR] Infrastructure config not found: {infrastructure_config_path}")
+        error(f"Infrastructure config not found: {infrastructure_config_path}")
         return None, None, None
     
     # Load analysis config
     if not analysis_config_path.exists():
-        print(f"[ERROR] Analysis config not found: {analysis_config_path}")
+        error(f"Analysis config not found: {analysis_config_path}")
         return None, None, None
     
     # Load dimensions config
     if not dimensions_config_path.exists():
-        print(f"[ERROR] Dimensions config not found: {dimensions_config_path}")
+        error(f"Dimensions config not found: {dimensions_config_path}")
         return None, None, None
     
     try:
         with open(infrastructure_config_path, 'r') as f:
             infrastructure_config = yaml.safe_load(f)
+        debug(f"Loaded infrastructure config from {infrastructure_config_path}")
         
         with open(analysis_config_path, 'r') as f:
             analysis_config = yaml.safe_load(f)
+        debug(f"Loaded analysis config from {analysis_config_path}")
         
         with open(dimensions_config_path, 'r') as f:
             dimensions_config = yaml.safe_load(f)
+        debug(f"Loaded dimensions config from {dimensions_config_path}")
         
-        print(f"[SUCCESS] Loaded infrastructure, analysis, and dimensions configs")
+        info("Successfully loaded all configuration files")
         return infrastructure_config, analysis_config, dimensions_config
     
     except Exception as e:
-        print(f"[ERROR] Failed to load configs: {e}")
+        error(f"Failed to load configs: {e}")
         return None, None, None
 
 class Config:
     """Configuration class that loads infrastructure, analysis, and dimensions configs"""
     
     def __init__(self):
-        print("Initializing Config class")
+        info("Initializing Config class")
         
         # Load config files
         self.infrastructure_config, self.analysis_config, self.dimensions_config = load_config_files()
         
         # Environment variables for services that need them
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "placeholder-key")
+        debug(f"OpenAI API Key loaded: {'set' if self.OPENAI_API_KEY != 'placeholder-key' else 'placeholder'}")
+        
+        # Log all configurations
+        if self.infrastructure_config:
+            log_config("Infrastructure", self.infrastructure_config)
         
         if self.analysis_config:
+            log_config("Analysis", self.analysis_config)
+            
             operations = []
             if self.analysis_config.get("run_analysis", True):
                 operations.append("analysis")
@@ -75,9 +86,13 @@ class Config:
                 operations.append("cubes")
             if self.analysis_config.get("test_data", False):
                 operations.append("testing")
-            print(f"Config loaded with operations: {', '.join(operations) if operations else 'none'}")
-        else:
-            print("Config failed to load")
+            info(f"Enabled operations: {', '.join(operations) if operations else 'none'}")
+        
+        if self.dimensions_config:
+            log_config("Dimensions", self.dimensions_config)
+        
+        if not (self.infrastructure_config and self.analysis_config and self.dimensions_config):
+            error("Failed to load one or more configuration files")
     
     def should_run_analysis(self):
         """Check if analysis should be run"""
@@ -185,14 +200,14 @@ class Config:
                 errors.append("test_data must be true or false")
         
         if errors:
-            print(f"Configuration errors found: {len(errors)}")
-            for error in errors:
-                print(f"   - {error}")
+            error(f"Configuration validation failed with {len(errors)} errors:")
+            for err in errors:
+                error(f"   - {err}")
         else:
-            print("All configurations are valid")
+            info("All configurations are valid")
         
         return errors
 
 # Global config instance
-print("Creating global config instance...")
+info("Creating global config instance...")
 config = Config()

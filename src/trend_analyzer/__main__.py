@@ -3,31 +3,32 @@
 # === FILE META OPENING ===
 # file: ./trend-analyzer/src/trend_analyzer/__main__.py
 # role: entry_point
-# desc: simplified single entry point that reads config.yml and executes
+# desc: main entry point that loads configs and executes enabled operations
 # === FILE META CLOSING ===
 
 from pathlib import Path
 import yaml
 
+from .logging_config import info, debug, error, warning
 from .config import config
 
-print("Starting Trend Analyzer...")
+info("Starting Trend Analyzer...")
 
 def load_config():
     """Load configuration from config directory - now uses infrastructure and analysis configs"""
-    print("Loading configuration from config directory...")
+    info("Loading configuration from config directory...")
     
     # Config is now loaded automatically by the config module
     # Just validate that it loaded successfully
     if not config.infrastructure_config or not config.analysis_config:
-        print("Error: Failed to load configuration files")
-        print("Please ensure config/infrastructure.yml and config/analysis.yml exist")
+        error("Failed to load configuration files")
+        error("Please ensure config/infrastructure.yml and config/analysis.yml exist")
         return None
     
-    print("Configuration loaded successfully from:")
-    print("  - config/infrastructure.yml")
-    print("  - config/analysis.yml") 
-    print("  - config/dimensions.yml")
+    info("Configuration loaded successfully from:")
+    info("  - config/infrastructure.yml")
+    info("  - config/analysis.yml") 
+    info("  - config/dimensions.yml")
     
     # Return combined config for backward compatibility
     combined_config = {
@@ -45,83 +46,103 @@ def load_config():
 
 def execute_analysis(config_data):
     """Execute trend analysis with PostgreSQL"""
-    print("\nEXECUTING: Trend Analysis (PostgreSQL)")
+    info("EXECUTING: Trend Analysis (PostgreSQL)")
     
     analysis_config = config_data.get("analyze", {})
     output_config = config_data.get("output", {})
     db_config = config_data.get("database", {})
     
-    print(f"[PLACEHOLDER] Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
-    print(f"[PLACEHOLDER] Group by: {analysis_config.get('group_by_dimensions', [])}")
-    print(f"[PLACEHOLDER] Filters: {len(analysis_config.get('filters', []))} filters")
-    print(f"[PLACEHOLDER] Top N: {analysis_config.get('top_n', 'unlimited')}")
-    print(f"[PLACEHOLDER] Output format: {output_config.get('format', 'json')}")
+    info(f"Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
+    info(f"Group by: {analysis_config.get('group_by_dimensions', [])}")
+    info(f"Filters: {len(analysis_config.get('filters', []))} filters")
+    info(f"Top N: {analysis_config.get('top_n', 'unlimited')}")
+    info(f"Output format: {output_config.get('format', 'json')}")
+    
+    # Log detailed analysis configuration
+    debug("Analysis configuration details:")
+    for key, value in analysis_config.items():
+        debug(f"  {key}: {value}")
     
     # Import and use PostgreSQL data access
     from .data_access import get_trend_data_from_config
     result = get_trend_data_from_config(config_data)
     
-    print("[PLACEHOLDER] Would execute AI analysis...")
-    print("   - Load data from PostgreSQL tables")
-    print("   - Run trend analysis")
-    print("   - Generate report")
-    print("[PLACEHOLDER] Analysis complete")
+    info("Would execute AI analysis...")
+    debug("   - Load data from PostgreSQL tables")
+    debug("   - Run trend analysis") 
+    debug("   - Generate report")
+    info("Analysis complete")
 
 def execute_cube_build(config_data):
     """Execute cube building with PostgreSQL"""
-    print("\nEXECUTING: Table Creation (PostgreSQL)")
+    info("EXECUTING: Table Creation (PostgreSQL)")
     
     cube_config = config_data.get("cube_building", {})
-    paths_config = config_data.get("paths", {})
     db_config = config_data.get("database", {})
     
-    print(f"[PLACEHOLDER] Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
-    print(f"[PLACEHOLDER] Dimensions file: {paths_config.get('dimensions_file', './config/dimensions.yml')}")
-    print(f"[PLACEHOLDER] Force rebuild: {cube_config.get('force_rebuild', False)}")
-    print(f"[PLACEHOLDER] Validate data: {cube_config.get('validate_data', True)}")
+    info(f"Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
+    info(f"Dimensions file: ./config/dimensions.yml")
+    info(f"Force rebuild: {cube_config.get('force_rebuild', False)}")
+    info(f"Validate data: {cube_config.get('validate_data', True)}")
     
-    print("[PLACEHOLDER] Would execute table creation...")
-    print("   - Load YAML configuration")
-    print("   - Generate SQL for PostgreSQL tables")
-    print("   - Execute CREATE TABLE statements")
-    print("   - Create indexes for performance")
-    print("[PLACEHOLDER] Table creation complete")
+    # Log detailed cube configuration
+    debug("Cube building configuration details:")
+    for key, value in cube_config.items():
+        debug(f"  {key}: {value}")
+    
+    # Import and use cube builder
+    from .cube_builder import build_cubes_from_config
+    result = build_cubes_from_config(config_data)
+    
+    info("Would execute table creation...")
+    debug("   - Load YAML configuration")
+    debug("   - Generate SQL for PostgreSQL tables")
+    debug("   - Execute CREATE TABLE statements")
+    debug("   - Create indexes for performance")
+    info("Table creation complete")
 
 def execute_data_tests(config_data):
     """Execute data testing with PostgreSQL"""
-    print("\nEXECUTING: Data Testing (PostgreSQL)")
+    info("EXECUTING: Data Testing (PostgreSQL)")
     
     test_config = config_data.get("test_data", {})
     db_config = config_data.get("database", {})
     
-    print(f"[PLACEHOLDER] Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
-    connections = test_config.get("connection_tests", [])
-    print(f"[PLACEHOLDER] Testing connections: {connections}")
-    print(f"[PLACEHOLDER] Run sample queries: {test_config.get('run_sample_queries', True)}")
+    info(f"Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
+    info(f"Connection tests: {test_config.get('connection_tests', [])}")
+    info(f"Sample queries: {test_config.get('run_sample_queries', False)}")
     
-    # Test PostgreSQL connection
+    # Log detailed test configuration
+    debug("Data testing configuration details:")
+    for key, value in test_config.items():
+        debug(f"  {key}: {value}")
+    
+    # Test database connection
     from .auth import get_database_client
     db_client = get_database_client(config_data)
     
     if db_client:
         connection_success = db_client.connect()
-        print(f"[PLACEHOLDER] PostgreSQL connection test: {'SUCCESS' if connection_success else 'FAILED'}")
+        if connection_success:
+            info("PostgreSQL connection test: SUCCESS")
+        else:
+            error("PostgreSQL connection test: FAILED")
     
-    print("[PLACEHOLDER] Would execute data testing...")
-    print("   - Test PostgreSQL connection")
-    print("   - Validate table schemas")
-    print("   - Run sample queries")
-    print("   - Check data quality")
-    print("[PLACEHOLDER] Data testing complete")
+    info("Would execute data testing...")
+    debug("   - Test PostgreSQL connection")
+    debug("   - Validate table schemas")
+    debug("   - Run sample queries")
+    debug("   - Check data quality")
+    info("Data testing complete")
 
 def main():
-    """Ultra-simplified main entry point"""
-    print("Trend Analyzer starting up...")
+    """Main entry point with comprehensive logging"""
+    info("Trend Analyzer starting up...")
     
-    # Load the single config file
+    # Load the config files
     config_data = load_config()
     if not config_data:
-        print("Failed to load configuration. Exiting.")
+        error("Failed to load configuration. Exiting.")
         return
     
     # Check which operations to run
@@ -135,22 +156,29 @@ def main():
     if test_data: operations.append("data testing")
     
     if not operations:
-        print("No operations enabled. Enable at least one in config/analysis.yml")
+        warning("No operations enabled. Enable at least one in config/analysis.yml")
         return
     
-    print(f"Will run: {', '.join(operations)}")
+    info(f"Will run: {', '.join(operations)}")
+    debug(f"Operation flags - run_analysis: {run_analysis}, build_cubes: {build_cubes}, test_data: {test_data}")
     
     # Execute enabled operations
-    if run_analysis:
-        execute_analysis(config_data)
+    try:
+        if run_analysis:
+            execute_analysis(config_data)
+        
+        if build_cubes:
+            execute_cube_build(config_data)
+        
+        if test_data:
+            execute_data_tests(config_data)
+        
+        info("Execution completed successfully")
     
-    if build_cubes:
-        execute_cube_build(config_data)
-    
-    if test_data:
-        execute_data_tests(config_data)
-    
-    print("\nExecution completed successfully")
+    except Exception as e:
+        error(f"Execution failed with error: {e}")
+        debug(f"Error details: {str(e)}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
     main()

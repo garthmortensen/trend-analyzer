@@ -10,4 +10,6 @@
 Trend Analyzer - AI-powered health insurance claims trend analysis (skeleton)
 """
 
-print(f"Loading trend_analyzer package.")
+# Initialize logging first before other imports
+from .logging_config import info
+info("Loading trend_analyzer package.")

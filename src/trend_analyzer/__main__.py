@@ -3,95 +3,140 @@
 # === FILE META OPENING ===
 # file: ./trend-analyzer/src/trend_analyzer/__main__.py
 # role: entry_point
-# desc: basic CLI entry point with placeholder command handling
+# desc: simplified single entry point that reads config.yml and executes
 # === FILE META CLOSING ===
 
-import sys
-
-print("Starting Trend Analyzer CLI...")
+from pathlib import Path
+import yaml
 
 from .config import config
 
-ascii_banner = f"""
-▗        ▌    ▜ 
-▜▘▛▘█▌▛▌▛▌▄▖▀▌▐ ▌▌▀▌█▌▛▘
-▐▖▌ ▙▖▌▌▙▌  █▌▐▖▙▌▙▖▙▖▌ 
-                ▄▌
-"""
-print(ascii_banner)
+print("Starting Trend Analyzer...")
 
-def print_usage():
-    """Print basic usage information"""
-    print("\nTrend Analyzer - Skeleton Version")
-    print("\nUsage: python -m trend_analyzer <command>")
-    print("\nCommands:")
-    print("  build-cubes  - [PLACEHOLDER] Build BigQuery data cubes")
-    print("  test-data    - [PLACEHOLDER] Test data access")
-    print("  analyze      - [PLACEHOLDER] Run AI analysis")
-    print("  help         - Show this help message")
-    print("\nNote: This is a skeleton implementation with placeholders")
+def load_config():
+    """Load configuration from config directory - now uses infrastructure and analysis configs"""
+    print("Loading configuration from config directory...")
+    
+    # Config is now loaded automatically by the config module
+    # Just validate that it loaded successfully
+    if not config.infrastructure_config or not config.analysis_config:
+        print("Error: Failed to load configuration files")
+        print("Please ensure config/infrastructure.yml and config/analysis.yml exist")
+        return None
+    
+    print("Configuration loaded successfully from:")
+    print("  - config/infrastructure.yml")
+    print("  - config/analysis.yml") 
+    print("  - config/dimensions.yml")
+    
+    # Return combined config for backward compatibility
+    combined_config = {
+        "mode": config.get_mode(),
+        "database": config.get_database_config(),
+        "output": config.get_output_config(),
+        "analyze": config.get_analysis_config()
+    }
+    
+    return combined_config
 
-def handle_build_cubes():
-    """Placeholder for cube building"""
-    print("\nBUILD-CUBES Command")
-    print("[PLACEHOLDER] Would build BigQuery data cubes here")
-    print("   - Load YAML configuration")
-    print("   - Generate SQL for descriptor table")
-    print("   - Generate SQL for norm table")
-    print("   - Execute table creation")
-    print("[PLACEHOLDER] Cube building would be complete")
-
-def handle_test_data():
-    """Placeholder for data testing"""
-    print("\nTEST-DATA Command")
-    print("[PLACEHOLDER] Would test data access here")
-    print("   - Check BigQuery connection")
-    print("   - Validate table schemas")
-    print("   - Run sample queries")
-    print("[PLACEHOLDER] Data testing would be complete")
-
-def handle_analyze():
-    """Placeholder for AI analysis"""
-    print("\nANALYZE Command")
-    print("[PLACEHOLDER] Would run AI analysis here")
-    print("   - Initialize OpenAI client")
-    print("   - Load data from cubes")
+def execute_analysis(config_data):
+    """Execute trend analysis with PostgreSQL"""
+    print("\nEXECUTING: Trend Analysis (PostgreSQL)")
+    
+    analysis_config = config_data.get("analyze", {})
+    output_config = config_data.get("output", {})
+    db_config = config_data.get("database", {})
+    
+    print(f"[PLACEHOLDER] Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
+    print(f"[PLACEHOLDER] Group by: {analysis_config.get('group_by_dimensions', [])}")
+    print(f"[PLACEHOLDER] Filters: {len(analysis_config.get('filters', []))} filters")
+    print(f"[PLACEHOLDER] Top N: {analysis_config.get('top_n', 'unlimited')}")
+    print(f"[PLACEHOLDER] Output format: {output_config.get('format', 'json')}")
+    
+    # Import and use PostgreSQL data access
+    from .data_access import get_trend_data_from_config
+    result = get_trend_data_from_config(config_data)
+    
+    print("[PLACEHOLDER] Would execute AI analysis...")
+    print("   - Load data from PostgreSQL tables")
     print("   - Run trend analysis")
     print("   - Generate report")
-    print("[PLACEHOLDER] Analysis would be complete")
+    print("[PLACEHOLDER] Analysis complete")
+
+def execute_cube_build(config_data):
+    """Execute cube building with PostgreSQL"""
+    print("\nEXECUTING: Table Creation (PostgreSQL)")
+    
+    cube_config = config_data.get("build_cubes", {})
+    paths_config = config_data.get("paths", {})
+    db_config = config_data.get("database", {})
+    
+    print(f"[PLACEHOLDER] Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
+    print(f"[PLACEHOLDER] Dimensions file: {paths_config.get('dimensions_file', './config/dimensions.yml')}")
+    print(f"[PLACEHOLDER] Force rebuild: {cube_config.get('force_rebuild', False)}")
+    print(f"[PLACEHOLDER] Validate data: {cube_config.get('validate_data', True)}")
+    
+    print("[PLACEHOLDER] Would execute table creation...")
+    print("   - Load YAML configuration")
+    print("   - Generate SQL for PostgreSQL tables")
+    print("   - Execute CREATE TABLE statements")
+    print("   - Create indexes for performance")
+    print("[PLACEHOLDER] Table creation complete")
+
+def execute_data_tests(config_data):
+    """Execute data testing with PostgreSQL"""
+    print("\nEXECUTING: Data Testing (PostgreSQL)")
+    
+    test_config = config_data.get("test_data", {})
+    db_config = config_data.get("database", {})
+    
+    print(f"[PLACEHOLDER] Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
+    connections = test_config.get("connection_tests", [])
+    print(f"[PLACEHOLDER] Testing connections: {connections}")
+    print(f"[PLACEHOLDER] Run sample queries: {test_config.get('run_sample_queries', True)}")
+    
+    # Test PostgreSQL connection
+    from .auth import get_database_client
+    db_client = get_database_client(config_data)
+    
+    if db_client:
+        connection_success = db_client.connect()
+        print(f"[PLACEHOLDER] PostgreSQL connection test: {'SUCCESS' if connection_success else 'FAILED'}")
+    
+    print("[PLACEHOLDER] Would execute data testing...")
+    print("   - Test PostgreSQL connection")
+    print("   - Validate table schemas")
+    print("   - Run sample queries")
+    print("   - Check data quality")
+    print("[PLACEHOLDER] Data testing complete")
 
 def main():
-    """Main CLI entry point"""
+    """Ultra-simplified main entry point"""
     print("Trend Analyzer starting up...")
     
-    # Validate configuration
-    errors = config.validate()
-    if errors:
-        print("Configuration has issues, but continuing in skeleton mode")
-    
-    # Handle command line arguments
-    if len(sys.argv) < 2:
-        print_usage()
+    # Load the single config file
+    config_data = load_config()
+    if not config_data:
+        print("Failed to load configuration. Exiting.")
         return
     
-    command = sys.argv[1].lower()
+    # Get the mode from config
+    mode = config_data.get("mode", "analyze")
+    print(f"Execution mode: {mode}")
     
-    print(f"Processing command: {command}")
-    w
-    if command == "build-cubes":
-        handle_build_cubes()
-    elif command == "test-data":
-        handle_test_data()
-    elif command == "analyze":
-        handle_analyze()
-    elif command in ["help", "--help", "-h"]:
-        print_usage()
+    # Route to appropriate execution
+    if mode == "analyze":
+        execute_analysis(config_data)
+    elif mode == "build-cubes":
+        execute_cube_build(config_data)
+    elif mode == "test-data":
+        execute_data_tests(config_data)
     else:
-        print(f"Unknown command: {command}")
-        print_usage()
-        sys.exit(1)
+        print(f"Unknown mode: {mode}")
+        print("Valid modes: analyze, build-cubes, test-data")
+        return
     
-    print("\nCommand completed successfully (placeholder)")
+    print("\nExecution completed successfully")
 
 if __name__ == "__main__":
     main()

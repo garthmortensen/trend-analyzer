@@ -10,6 +10,4 @@
 Trend Analyzer - AI-powered health insurance claims trend analysis (skeleton)
 """
 
-__version__ = "0.1.0"
-
-print(f"Loading trend_analyzer package v{__version__}")
+print(f"Loading trend_analyzer package.")

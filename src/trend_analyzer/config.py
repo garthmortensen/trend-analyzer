@@ -82,8 +82,6 @@ class Config:
             operations = []
             if self.analysis_config.get("run_analysis", True):
                 operations.append("analysis")
-            if self.analysis_config.get("build_cubes", False):
-                operations.append("cubes")
             if self.analysis_config.get("test_data", False):
                 operations.append("testing")
             info(f"Enabled operations: {', '.join(operations) if operations else 'none'}")
@@ -100,11 +98,6 @@ class Config:
             return True
         return self.analysis_config.get("run_analysis", True)
     
-    def should_build_cubes(self):
-        """Check if cubes should be built"""
-        if not self.analysis_config:
-            return False
-        return self.analysis_config.get("build_cubes", False)
     
     def should_test_data(self):
         """Check if data testing should be run"""
@@ -141,11 +134,6 @@ class Config:
             return {}
         return self.analysis_config.get("analyze", {})
     
-    def get_cube_building_config(self):
-        """Get cube building configuration"""
-        if not self.analysis_config:
-            return {}
-        return self.analysis_config.get("cube_building", {})
     
     def get_trends_config(self):
         """Get trends configuration"""
@@ -189,13 +177,10 @@ class Config:
         if self.analysis_config:
             # Validate boolean flags
             run_analysis = self.analysis_config.get("run_analysis")
-            build_cubes = self.analysis_config.get("build_cubes")
             test_data = self.analysis_config.get("test_data")
             
             if not isinstance(run_analysis, bool) and run_analysis is not None:
                 errors.append("run_analysis must be true or false")
-            if not isinstance(build_cubes, bool) and build_cubes is not None:
-                errors.append("build_cubes must be true or false")
             if not isinstance(test_data, bool) and test_data is not None:
                 errors.append("test_data must be true or false")
         

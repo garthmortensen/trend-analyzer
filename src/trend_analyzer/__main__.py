@@ -35,10 +35,8 @@ def load_config():
         "database": config.get_database_config(),
         "output": config.get_output_config(),
         "analyze": config.get_analysis_config(),
-        "cube_building": config.get_cube_building_config(),
-        # Include the boolean flags
+        # Boolean flags (cube build removed)
         "run_analysis": config.should_run_analysis(),
-        "build_cubes": config.should_build_cubes(),
         "test_data": config.should_test_data()
     }
     
@@ -73,33 +71,6 @@ def execute_analysis(config_data):
     debug("   - Generate report")
     info("Analysis complete")
 
-def execute_cube_build(config_data):
-    """Execute cube building with PostgreSQL"""
-    info("EXECUTING: Table Creation (PostgreSQL)")
-    
-    cube_config = config_data.get("cube_building", {})
-    db_config = config_data.get("database", {})
-    
-    info(f"Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
-    info(f"Dimensions file: ./config/dimensions.yml")
-    info(f"Force rebuild: {cube_config.get('force_rebuild', False)}")
-    info(f"Validate data: {cube_config.get('validate_data', True)}")
-    
-    # Log detailed cube configuration
-    debug("Cube building configuration details:")
-    for key, value in cube_config.items():
-        debug(f"  {key}: {value}")
-    
-    # Import and use cube builder
-    from .cube_builder import build_cubes_from_config
-    result = build_cubes_from_config(config_data)
-    
-    info("Would execute table creation...")
-    debug("   - Load YAML configuration")
-    debug("   - Generate SQL for PostgreSQL tables")
-    debug("   - Execute CREATE TABLE statements")
-    debug("   - Create indexes for performance")
-    info("Table creation complete")
 
 def execute_data_tests(config_data):
     """Execute data testing with PostgreSQL"""
@@ -147,12 +118,11 @@ def main():
     
     # Check which operations to run
     run_analysis = config_data.get("run_analysis", True)
-    build_cubes = config_data.get("build_cubes", False)
+    # Cube build removed
     test_data = config_data.get("test_data", False)
     
     operations = []
     if run_analysis: operations.append("analysis")
-    if build_cubes: operations.append("cube building")
     if test_data: operations.append("data testing")
     
     if not operations:
@@ -160,18 +130,17 @@ def main():
         return
     
     info(f"Will run: {', '.join(operations)}")
-    debug(f"Operation flags - run_analysis: {run_analysis}, build_cubes: {build_cubes}, test_data: {test_data}")
+    debug(f"Operation flags - run_analysis: {run_analysis}, test_data: {test_data}")
     
     # Execute enabled operations
     try:
-        if run_analysis:
-            execute_analysis(config_data)
-        
-        if build_cubes:
-            execute_cube_build(config_data)
-        
+        # TODO: understand this
         if test_data:
             execute_data_tests(config_data)
+
+        # TODO: understand this
+        if run_analysis:
+            execute_analysis(config_data)
         
         info("Execution completed successfully")
     

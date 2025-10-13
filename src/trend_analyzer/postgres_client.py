@@ -1,138 +1,147 @@
 #!/usr/bin/env python3
-#
+
 # === FILE META OPENING ===
-# file: ./trend-analyzer/src/trend_analyzer/postgres_client.py
+# file: ./src/trend_analyzer/postgres_client.py
 # role: data_access
 # desc: PostgreSQL database client for trend analyzer
 # === FILE META CLOSING ===
 
-import pandas as pd
-import psycopg2
-from sqlalchemy import create_engine, text
+import os
 from typing import Optional, Dict, Any
-import logging
 
-print("Loading postgres_client module...")
+import pandas as pd
+from sqlalchemy import create_engine, text
+
+# Optionally load .env for local development (non-fatal if package missing)
+try:
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv()
+except Exception:
+    pass
+
 
 class PostgreSQLClient:
-    """PostgreSQL database client for trend analyzer"""
-    
+    """Simple PostgreSQL client with optional statement timeout.
+
+    - Reads host/port/database from config["database"].
+    - Username/password are overridden by DB_USERNAME/DB_PASSWORD env vars if set.
+    - statement_timeout_seconds (in config) is converted to milliseconds and applied via
+      psycopg2 "options" connect arg.
+    """
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.engine = None
-        self.connection_string = None
+        self.connection_string = ""
+        self._connect_args: Dict[str, Any] = {}
         self._build_connection_string()
-    
-    def _build_connection_string(self):
-        """Build PostgreSQL connection string from config"""
+
+    def _build_connection_string(self) -> None:
         db_config = self.config.get("database", {})
-        
+
         host = db_config.get("host", "localhost")
         port = db_config.get("port", 5432)
         database = db_config.get("database", "trend_analyzer")
-        username = db_config.get("username", "postgres")
-        password = db_config.get("password", "password")
-        
-        self.connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-        print(f"[PLACEHOLDER] Connection string built for: {username}@{host}:{port}/{database}")
-    
+        # environment overrides for 12-factor compatibility
+        username = os.getenv("DB_USERNAME", db_config.get("username", "postgres"))
+        password = os.getenv("DB_PASSWORD", db_config.get("password", "password"))
+
+        # Timeout configuration (seconds only)
+        statement_timeout_seconds = db_config.get("statement_timeout_seconds")
+        statement_timeout_ms: Optional[int] = None
+        if isinstance(statement_timeout_seconds, (int, float)):
+            statement_timeout_ms = int(float(statement_timeout_seconds) * 1000)
+
+        self.connection_string = (
+            f"postgresql://{username}:{password}@{host}:{port}/{database}"
+        )
+
+        # Configure server-side statement timeout if provided (in milliseconds)
+        if isinstance(statement_timeout_ms, int) and statement_timeout_ms > 0:
+            # psycopg2 supports passing options flags
+            self._connect_args = {
+                "options": f"-c statement_timeout={int(statement_timeout_ms)}"
+            }
+        else:
+            self._connect_args = {}
+
     def connect(self) -> bool:
-        """Test database connection"""
-        print("[PLACEHOLDER] Connecting to PostgreSQL...")
-        
+        """Create an engine and verify connectivity."""
         try:
-            self.engine = create_engine(self.connection_string)
-            
+            # Use future engine and pre-ping; apply connect args (e.g., statement_timeout)
+            self.engine = create_engine(
+                self.connection_string,
+                future=True,
+                pool_pre_ping=True,
+                connect_args=self._connect_args or {},
+            )
+
             # Test connection
             with self.engine.connect() as conn:
-                result = conn.execute(text("select version()"))
-                version = result.fetchone()[0]
-                print(f"[PLACEHOLDER] Connected successfully: {version[:50]}...")
-            
+                _ = conn.execute(text("select 1"))
+
             return True
-            
-        except Exception as e:
-            print(f"[PLACEHOLDER] Connection failed: {str(e)}")
+        except Exception:
             return False
-    
-    def run_query(self, sql: str, params: Optional[Dict] = None) -> pd.DataFrame:
-        """Execute SQL query and return DataFrame"""
-        print(f"[PLACEHOLDER] Executing query: {sql[:100]}...")
-        
+
+    def run_query(self, sql: str, params: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+        """Execute SQL query and return DataFrame."""
         if not self.engine:
             if not self.connect():
-                print("[PLACEHOLDER] Cannot execute query - no connection")
                 return pd.DataFrame()
-        
+
         try:
-            df = pd.read_sql(sql, self.engine, params=params)
-            print(f"[PLACEHOLDER] Query successful: {len(df)} rows returned")
-            return df
-            
-        except Exception as e:
-            print(f"[PLACEHOLDER] Query failed: {str(e)}")
+            return pd.read_sql(sql, self.engine, params=params)
+        except Exception:
             return pd.DataFrame()
-    
+
     def execute_ddl(self, sql: str) -> bool:
-        """Execute DDL statements (CREATE, DROP, etc.)"""
-        print(f"[PLACEHOLDER] Executing DDL: {sql[:100]}...")
-        
+        """Execute DDL statements (create, drop, etc.)."""
         if not self.engine:
             if not self.connect():
-                print("[PLACEHOLDER] Cannot execute DDL - no connection")
                 return False
-        
+
         try:
-            with self.engine.connect() as conn:
+            with self.engine.begin() as conn:
                 conn.execute(text(sql))
-                conn.commit()
-            
-            print("[PLACEHOLDER] DDL executed successfully")
             return True
-            
-        except Exception as e:
-            print(f"[PLACEHOLDER] DDL failed: {str(e)}")
+        except Exception:
             return False
-    
+
     def table_exists(self, table_name: str, schema: str = "public") -> bool:
-        """Check if table exists"""
+        """Check if a table exists using information_schema."""
         sql = f"""
         select exists (
-            select from information_schema.tables 
-            where table_schema = '{schema}' 
-            and table_name = '{table_name}'
+            select from information_schema.tables
+            where table_schema = '{schema}'
+              and table_name = '{table_name}'
         );
         """
-        
         try:
             df = self.run_query(sql)
-            exists = df.iloc[0, 0] if not df.empty else False
-            print(f"[PLACEHOLDER] Table {schema}.{table_name} exists: {exists}")
-            return exists
-            
-        except Exception as e:
-            print(f"[PLACEHOLDER] Error checking table existence: {e}")
+            return bool(df.iloc[0, 0]) if not df.empty else False
+        except Exception:
             return False
-    
+
     def get_table_info(self, table_name: str, schema: str = "public") -> pd.DataFrame:
-        """Get table column information"""
+        """Get table column metadata (name, type, nullability)."""
         sql = f"""
         select column_name, data_type, is_nullable
         from information_schema.columns
         where table_schema = '{schema}' and table_name = '{table_name}'
         order by ordinal_position;
         """
-        
         return self.run_query(sql)
+
 
 # Global client instance
 _postgres_client: Optional[PostgreSQLClient] = None
 
+
 def get_postgres_client(config: Dict[str, Any]) -> PostgreSQLClient:
-    """Get or create PostgreSQL client"""
+    """Get or create a singleton PostgreSQL client for this process."""
     global _postgres_client
-    
     if _postgres_client is None:
         _postgres_client = PostgreSQLClient(config)
-    
     return _postgres_client

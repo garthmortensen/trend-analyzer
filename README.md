@@ -1,5 +1,23 @@
 # Trend Decomposition Agent
 
+Quick start (no CLI)
+
+1. Set environment variables (or create a .env file):
+    - OPENAI_API_KEY
+    - DB_USERNAME, DB_PASSWORD (use your read-only role)
+    - optionally DB_HOST, DB_PORT, DB_NAME
+2. Run the example:
+    - uv run python examples/question.py
+
+Notes
+- .env files are automatically loaded if python-dotenv is installed.
+- No CLI required; examples/question.py imports a minimal `ask()` function.
+
+TODO: uv add openai pyyaml
+Tools: list_dimensions, get_dimension_values, run_sql_safe(select-only).
+Prompt template that forces structured JSON output: {table, columns, filters, group_by, order_by, limit}.
+Validator that checks the model’s JSON against the allowlist and clamps limit.
+
 This repository contains a Google Colab or Jupyter notebook that shows how to use a large language model (LLM) to analyze period‑over‑period trends in your own data. In the included example, we want to know: how did health insurance claims change from one period (early 2023) to another period (early 2024), and what were the underlying drivers? We need two data cubes as input: one data cube contains the "descriptor" data (claims, with all imaginable drivers loaded into columns), the other data cube contains the "normalizer" data (membership, with all imaginable membership segments loaded into columns).
 
 For example, claims could be up 20% year-over-year, but membership overall is up 10%, so the per-member-per-month (PMPM) claims trend is only 10%. Or, FL claims last year could have run at $100 PMPM, and TX claims at $50 PMPM. None of that changed, but the membership mix went from 50%/50% FL/TX to 60%/40% FL/TX, which means that simply due to that mix shift, total claims PMPM went from $75 to $80 PMPM.
@@ -10,7 +28,7 @@ The notebook defines an LLM-based agent that will repeatedly query and combine t
 
 The notebook lets you:
 
-1. Build BigQuery tables from a YAML configuration describing dimensions, metrics and source tables.
+1. (Formerly: build tables) Upstream ETL now materializes required descriptor/norm tables; local build step removed.
 2. Define a system prompt and analysis plan for a conversational agent.
 3. Expose data‑access functions (SQL queries, dimension lookups, chart creation) as tools the agent can call.
 4. Let the agent iteratively drill into the data, write findings to a Google Doc and generate charts.
@@ -20,7 +38,7 @@ The notebook lets you:
 1. Open the notebook in Colab or Jupyter and install the required Python packages when prompted.
 2. Provide your Google Cloud project IDs and authentication credentials so the BigQuery queries run correctly.
 3. Modify `dimensions.yml` or the YAML cell in the notebook to point to your own claim and membership tables and to customize dimensions or metrics.
-4. Execute the cells to build the normalized data tables and launch the agent. The agent will produce a step‑by‑step analysis of the 2023→2024 trend and write a summary to a Google Doc.
+4. Execute the cells to launch the agent (table build now handled upstream). The agent will produce a step‑by‑step analysis of the 2023→2024 trend and write a summary to a Google Doc.
 
 ## Using this approach for your data
 
@@ -50,7 +68,7 @@ graph TD
         C --> D[Define YAML<br>Configuration];
         D -- "Defines dimensions,<br>metrics, tables" --> E{Generate SQL};
         E --> F["Execute BigQuery SQL to<br>Generate Analysis Tables"];
-        F --> G["Create Descriptor (Claims)<br>and Norm (Membership) Tables"];
+    F --> G["(Now upstream) Descriptor & Norm Tables Ready"];
     end
 
     subgraph "Phase 2: Agent & Tool Definition"

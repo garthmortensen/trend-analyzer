@@ -85,34 +85,30 @@ def execute_data_tests(config_data):
     """Execute data testing with PostgreSQL"""
     info("EXECUTING: Data Testing (PostgreSQL)")
     
-    test_config = config_data.get("test_data", {})
     db_config = config_data.get("database", {})
     
     info(f"Database: {db_config.get('type', 'postgresql')} at {db_config.get('host', 'localhost')}")
-    info(f"Connection tests: {test_config.get('connection_tests', [])}")
-    info(f"Sample queries: {test_config.get('run_sample_queries', False)}")
-    
-    # Log detailed test configuration
-    debug("Data testing configuration details:")
-    for key, value in test_config.items():
-        debug(f"  {key}: {value}")
     
     # Test database connection
     from .auth import get_database_client
+    from .data_access import DESCRIPTOR_TABLE, NORMALIZER_TABLE
+    
     db_client = get_database_client(config_data)
+    connection_success = db_client.connect()
     
-    if db_client:
-        connection_success = db_client.connect()
-        if connection_success:
-            info("PostgreSQL connection test: SUCCESS")
-        else:
-            error("PostgreSQL connection test: FAILED")
+    if connection_success:
+        info("PostgreSQL connection test: SUCCESS")
+        
+        # Check if required tables exist
+        schema = db_config.get('schema', 'public')
+        descriptor_exists = db_client.table_exists(DESCRIPTOR_TABLE, schema)
+        normalizer_exists = db_client.table_exists(NORMALIZER_TABLE, schema)
+        
+        info(f"Table check: {schema}.{DESCRIPTOR_TABLE} {'EXISTS' if descriptor_exists else 'NOT FOUND'}")
+        info(f"Table check: {schema}.{NORMALIZER_TABLE} {'EXISTS' if normalizer_exists else 'NOT FOUND'}")
+    else:
+        error("PostgreSQL connection test: FAILED")
     
-    info("Would execute data testing...")
-    debug("   - Test PostgreSQL connection")
-    debug("   - Validate table schemas")
-    debug("   - Run sample queries")
-    debug("   - Check data quality")
     info("Data testing complete")
 
 def main():

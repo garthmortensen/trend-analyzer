@@ -12,10 +12,11 @@ info("Loading auth module...")
 
 from .postgres_client import get_postgres_client
 
+
 def get_database_client(config):
     """Get database client based on configuration"""
     db_type = config.get("database", {}).get("type", "postgresql")
-    
+
     if db_type == "postgresql":
         info("Getting PostgreSQL client...")
         return get_postgres_client(config)
@@ -26,6 +27,7 @@ def get_database_client(config):
         error(f"Unknown database type: {db_type}")
         return None
 
+
 def get_credentials():
     """Placeholder for credentials (simplified for PostgreSQL)"""
     debug("Getting database credentials...")
@@ -33,10 +35,12 @@ def get_credentials():
     debug("Credentials obtained")
     return "placeholder-credentials"
 
+
 def get_docs_service():
     """Placeholder for document service (optional)"""
     debug("Document service not required for PostgreSQL setup")
     return "placeholder-docs-service"
+
 
 def get_drive_service():
     """Placeholder for file service (optional)"""

@@ -85,7 +85,9 @@ class PostgreSQLClient:
         except Exception:
             return False
 
-    def run_query(self, sql: str, params: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+    def run_query(
+        self, sql: str, params: Optional[Dict[str, Any]] = None
+    ) -> pd.DataFrame:
         """Execute SQL query and return DataFrame."""
         if not self.engine:
             if not self.connect():

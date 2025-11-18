@@ -18,6 +18,7 @@ from sqlalchemy import create_engine, text
 # Optionally load .env for local development (non-fatal if package missing)
 try:
     from dotenv import load_dotenv  # type: ignore
+
     load_dotenv()
 except Exception:
     pass
@@ -42,7 +43,11 @@ def _make_engine_and_timeout():
     name = os.environ.get("DB_NAME", db.get("database", "aca_health"))
     user = os.environ.get("DB_USERNAME", db.get("username", "etl"))
     pwd = os.environ.get("DB_PASSWORD", db.get("password", "etl"))
-    timeout_s = int(os.environ.get("DB_STATEMENT_TIMEOUT_SECONDS", db.get("statement_timeout_seconds", 30)))
+    timeout_s = int(
+        os.environ.get(
+            "DB_STATEMENT_TIMEOUT_SECONDS", db.get("statement_timeout_seconds", 30)
+        )
+    )
 
     url = f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{name}"
     engine = create_engine(url, pool_pre_ping=True, future=True)
@@ -64,7 +69,12 @@ _DEFAULT_OPENAI_TIMEOUT_S = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
 _SINGLE_SHOT_MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "1"))
 
 
-def ask(question: str, *, max_steps: int = _SINGLE_SHOT_MAX_STEPS, timeout_s: int | None = None) -> Dict[str, Any]:
+def ask(
+    question: str,
+    *,
+    max_steps: int = _SINGLE_SHOT_MAX_STEPS,
+    timeout_s: int | None = None,
+) -> Dict[str, Any]:
     """Minimal entrypoint: derive a concise intent and verify DB connectivity.
 
     This does NOT run arbitrary SQL. It returns:
@@ -92,7 +102,7 @@ def ask(question: str, *, max_steps: int = _SINGLE_SHOT_MAX_STEPS, timeout_s: in
 
     system = (
         "you extract a concise intent from the user's question for healthcare trend analysis. "
-        "answer with a single json object: {\"intent\": \"...\"}. keep it short."
+        'answer with a single json object: {"intent": "..."}. keep it short.'
     )
     resp = client.chat.completions.create(
         model=model,
@@ -123,6 +133,7 @@ def ask(question: str, *, max_steps: int = _SINGLE_SHOT_MAX_STEPS, timeout_s: in
         "model": model,
     }
 
+
 #!/usr/bin/env python3
 #
 # === FILE META OPENING ===
@@ -143,6 +154,7 @@ from sqlalchemy import create_engine, text
 # Optionally load .env for local development (non-fatal if package missing)
 try:
     from dotenv import load_dotenv  # type: ignore
+
     load_dotenv()
 except Exception:
     pass
@@ -167,7 +179,11 @@ def _make_engine_and_timeout():
     name = os.environ.get("DB_NAME", db.get("database", "aca_health"))
     user = os.environ.get("DB_USERNAME", db.get("username", "etl"))
     pwd = os.environ.get("DB_PASSWORD", db.get("password", "etl"))
-    timeout_s = int(os.environ.get("DB_STATEMENT_TIMEOUT_SECONDS", db.get("statement_timeout_seconds", 30)))
+    timeout_s = int(
+        os.environ.get(
+            "DB_STATEMENT_TIMEOUT_SECONDS", db.get("statement_timeout_seconds", 30)
+        )
+    )
 
     url = f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{name}"
     engine = create_engine(url, pool_pre_ping=True, future=True)
@@ -203,7 +219,7 @@ def ask(question: str) -> Dict[str, Any]:
 
     system = (
         "you extract a concise intent from the user's question for healthcare trend analysis. "
-        "answer with a single json object: {\"intent\": \"...\"}. keep it short."
+        'answer with a single json object: {"intent": "..."}. keep it short.'
     )
     resp = client.chat.completions.create(
         model=model,

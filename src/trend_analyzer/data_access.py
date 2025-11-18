@@ -32,17 +32,29 @@ NORMALIZER_TABLE = "agg_trend_normalizer"
 # Basic client compatibility with the notebook (module scope)
 def get_client(config_data: Optional[Dict[str, Any]] = None):
     """Return a SQLAlchemy Engine built from config (notebook-compatible)."""
-    database_config = ((config_data or {}).get("database")) or config.get_database_config()
-    username = os.getenv("DB_USERNAME", database_config.get("username") or database_config.get("user"))
-    password = os.getenv("DB_PASSWORD", database_config.get("password") or database_config.get("pass"))
+    database_config = (
+        (config_data or {}).get("database")
+    ) or config.get_database_config()
+    username = os.getenv(
+        "DB_USERNAME", database_config.get("username") or database_config.get("user")
+    )
+    password = os.getenv(
+        "DB_PASSWORD", database_config.get("password") or database_config.get("pass")
+    )
     host = database_config.get("host", "localhost")
     port = int(database_config.get("port", 5432))
-    database_name = database_config.get("database") or database_config.get("dbname") or "postgres"
+    database_name = (
+        database_config.get("database") or database_config.get("dbname") or "postgres"
+    )
     url = f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{database_name}"
     return create_engine(url, future=True)
 
 
-def run_query(sql: str, params: Optional[Dict[str, Any]] = None, config_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def run_query(
+    sql: str,
+    params: Optional[Dict[str, Any]] = None,
+    config_data: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
     """Execute arbitrary SQL and return rows as list[dict] (notebook-compatible)."""
     engine = get_client(config_data)
     with engine.connect() as connection:
@@ -161,19 +173,28 @@ def get_trend_data_from_config(config_data):
     page, page_size = _pagination_params(analysis_config)
 
     # database/schema from config
-    database_config = {"database": (config_data or {}).get("database") or config.get_database_config()}
+    database_config = {
+        "database": (config_data or {}).get("database") or config.get_database_config()
+    }
     schema = _get_schema(database_config)
 
     engine = _get_engine(database_config)
     if engine is None:
-        return {"data": json.dumps([], default=str), "sql": "", "tables": {}, "config_summary": {}}
+        return {
+            "data": json.dumps([], default=str),
+            "sql": "",
+            "tables": {},
+            "config_summary": {},
+        }
 
     # reflect the descriptor table defined in database/*.sql
     descriptor_table = _reflect_table(engine, schema, DESCRIPTOR_TABLE)
 
     # projection list (fall back to full row if none valid)
     if select_columns:
-        columns_to_select = [descriptor_table.c[c] for c in select_columns if c in descriptor_table.c]
+        columns_to_select = [
+            descriptor_table.c[c] for c in select_columns if c in descriptor_table.c
+        ]
         if not columns_to_select:
             columns_to_select = [descriptor_table]
     else:
@@ -199,7 +220,9 @@ def get_trend_data_from_config(config_data):
 
     # best-effort: compile a literal SQL string for transparency/debugging
     try:
-        sql_compiled = str(query.compile(engine, compile_kwargs={"literal_binds": True}))
+        sql_compiled = str(
+            query.compile(engine, compile_kwargs={"literal_binds": True})
+        )
     except Exception:
         sql_compiled = ""
 
@@ -208,14 +231,19 @@ def get_trend_data_from_config(config_data):
     return {
         "data": json.dumps(rows, default=str),
         "sql": sql_compiled,
-        "tables": {"descriptor": _fqtn(schema, DESCRIPTOR_TABLE), "normalizer": _fqtn(schema, NORMALIZER_TABLE)},
+        "tables": {
+            "descriptor": _fqtn(schema, DESCRIPTOR_TABLE),
+            "normalizer": _fqtn(schema, NORMALIZER_TABLE),
+        },
         "config_summary": {
             "select_columns": select_columns or "*",
             "filter_count": len(filters),
             "top_n": top_n,
             "page": page,
             "page_size": page_size,
-            "database_type": (database_config.get("database") or {}).get("type", "postgresql"),
+            "database_type": (database_config.get("database") or {}).get(
+                "type", "postgresql"
+            ),
         },
     }
 
@@ -224,7 +252,9 @@ def list_available_dimensions(config_data):
     """Return available columns for descriptor table (name -> type)."""
     print("[INFO] Listing available columns from descriptor table...")
 
-    database_config = {"database": (config_data or {}).get("database") or config.get_database_config()}
+    database_config = {
+        "database": (config_data or {}).get("database") or config.get_database_config()
+    }
     schema = _get_schema(database_config)
 
     engine = _get_engine(database_config)
@@ -239,7 +269,9 @@ def get_dimension_values(dimension_name, config_data):
     """Get distinct non-null values for a given column from the descriptor table."""
     print(f"[INFO] Getting values for column: {dimension_name}")
 
-    database_config = {"database": (config_data or {}).get("database") or config.get_database_config()}
+    database_config = {
+        "database": (config_data or {}).get("database") or config.get_database_config()
+    }
     schema = _get_schema(database_config)
 
     engine = _get_engine(database_config)
@@ -250,7 +282,13 @@ def get_dimension_values(dimension_name, config_data):
     if col not in descriptor_table.c:
         return {"data": json.dumps([], default=str)}
 
-    stmt = select(descriptor_table.c[col].label("v")).where(descriptor_table.c[col].is_not(None)).distinct().order_by(descriptor_table.c[col]).limit(500)
+    stmt = (
+        select(descriptor_table.c[col].label("v"))
+        .where(descriptor_table.c[col].is_not(None))
+        .distinct()
+        .order_by(descriptor_table.c[col])
+        .limit(500)
+    )
     rows = _execute(engine, stmt)
     values = [r.get("v") for r in rows] if rows else []
     return {"data": json.dumps(values, default=str)}

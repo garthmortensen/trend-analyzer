@@ -9,17 +9,16 @@
 # Analysis configuration for Trend Analyzer
 # Contains business logic settings for how analysis is performed
 
-# What operations to run (can run multiple at once)
-build_cubes: false
-run_analysis: true
 test_data: false
 
 # Cube building configuration (used when build_cubes = true)
+build_cubes: false
 cube_building:
   force_rebuild: false
   validate_data: true
 
-# Analysis configuration (used when mode = "analyze")
+# Analysis configuration
+run_analysis: true
 analyze:
   group_by_dimensions:
     - "state"

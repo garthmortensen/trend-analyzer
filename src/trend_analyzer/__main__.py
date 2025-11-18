@@ -62,14 +62,36 @@ def execute_analysis(config_data):
         debug(f"  {key}: {value}")
     
     # Import and use PostgreSQL data access
-    from .data_access import get_trend_data_from_config
-    result = get_trend_data_from_config(config_data)
-    
-    info("Would execute AI analysis...")
-    debug("   - Load data from PostgreSQL tables")
-    debug("   - Run trend analysis") 
-    debug("   - Generate report")
-    info("Analysis complete")
+    try:
+        from .data_access import get_trend_data_from_config
+        result = get_trend_data_from_config(config_data)
+        
+        info("Would execute AI analysis...")
+        debug("   - Load data from PostgreSQL tables")
+        debug("   - Run trend analysis") 
+        debug("   - Generate report")
+        info("Analysis complete")
+        return True
+    except Exception as e:
+        # Check if this is a missing table error
+        is_missing_table = (
+            "NoSuchTableError" in str(type(e)) or 
+            "agg_trend_descriptor" in str(e) or 
+            "agg_trend_normalizer" in str(e)
+        )
+        
+        if is_missing_table:
+            error("Required database tables not found. Please ensure the following tables exist:")
+            error("  - agg_trend_descriptor")
+            error("  - agg_trend_normalizer")
+            error("See database/*.sql for table definitions")
+            info("")
+            info("To skip analysis, set 'run_analysis: false' in config/analysis.yml")
+            return False
+        else:
+            # Re-raise unexpected errors
+            error(f"Analysis failed with unexpected error: {e}")
+            raise
 
 
 def execute_data_tests(config_data):
@@ -122,8 +144,10 @@ def main():
     test_data = config_data.get("test_data", False)
     
     operations = []
-    if run_analysis: operations.append("analysis")
-    if test_data: operations.append("data testing")
+    if run_analysis:
+        operations.append("analysis")
+    if test_data:
+        operations.append("data testing")
     
     if not operations:
         warning("No operations enabled. Enable at least one in config/analysis.yml")
@@ -133,21 +157,19 @@ def main():
     debug(f"Operation flags - run_analysis: {run_analysis}, test_data: {test_data}")
     
     # Execute enabled operations
-    try:
-        # TODO: understand this
-        if test_data:
-            execute_data_tests(config_data)
+    success = True
+    if test_data:
+        execute_data_tests(config_data)
 
-        # TODO: understand this
-        if run_analysis:
-            execute_analysis(config_data)
-        
-        info("Execution completed successfully")
+    if run_analysis:
+        analysis_success = execute_analysis(config_data)
+        if not analysis_success:
+            success = False
     
-    except Exception as e:
-        error(f"Execution failed with error: {e}")
-        debug(f"Error details: {str(e)}", exc_info=True)
-        raise
+    if success:
+        info("Execution completed successfully")
+    else:
+        warning("Execution completed with warnings (see errors above)")
 
 if __name__ == "__main__":
     main()

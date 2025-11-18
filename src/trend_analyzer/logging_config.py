@@ -55,10 +55,16 @@ class TrendAnalyzerLogger:
         file_handler.setFormatter(detailed_formatter)
         self.logger.addHandler(file_handler)
         
-        # Console handler for INFO and above (stdout)
+        # Console handler for INFO and WARNING (stdout)
+        # Exclude ERROR+ to avoid duplication with error_handler
+        class InfoWarningFilter(logging.Filter):
+            def filter(self, record):
+                return record.levelno < logging.ERROR
+        
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(console_formatter)
+        console_handler.addFilter(InfoWarningFilter())
         self.logger.addHandler(console_handler)
         
         # Error handler for ERROR and above (stderr)
@@ -89,25 +95,25 @@ class TrendAnalyzerLogger:
         self.logger.debug(f"{config_name}_JSON: {json.dumps(config_data, indent=2, default=str)}")
         self.logger.info(f"=== END {config_name.upper()} CONFIGURATION ===")
     
-    def info(self, message):
+    def info(self, message, **kwargs):
         """Log info message"""
-        self.logger.info(message)
+        self.logger.info(message, **kwargs)
     
-    def debug(self, message):
+    def debug(self, message, **kwargs):
         """Log debug message"""
-        self.logger.debug(message)
+        self.logger.debug(message, **kwargs)
     
-    def warning(self, message):
+    def warning(self, message, **kwargs):
         """Log warning message"""
-        self.logger.warning(message)
+        self.logger.warning(message, **kwargs)
     
-    def error(self, message):
+    def error(self, message, **kwargs):
         """Log error message"""
-        self.logger.error(message)
+        self.logger.error(message, **kwargs)
     
-    def critical(self, message):
+    def critical(self, message, **kwargs):
         """Log critical message"""
-        self.logger.critical(message)
+        self.logger.critical(message, **kwargs)
 
 
 # Global logger instance
@@ -118,22 +124,22 @@ def log_config(config_name, config_data):
     """Log configuration data"""
     logger.log_config(config_name, config_data)
 
-def info(message):
+def info(message, **kwargs):
     """Log info message"""
-    logger.info(message)
+    logger.info(message, **kwargs)
 
-def debug(message):
+def debug(message, **kwargs):
     """Log debug message"""
-    logger.debug(message)
+    logger.debug(message, **kwargs)
 
-def warning(message):
+def warning(message, **kwargs):
     """Log warning message"""
-    logger.warning(message)
+    logger.warning(message, **kwargs)
 
-def error(message):
+def error(message, **kwargs):
     """Log error message"""
-    logger.error(message)
+    logger.error(message, **kwargs)
 
-def critical(message):
+def critical(message, **kwargs):
     """Log critical message"""
-    logger.critical(message)
+    logger.critical(message, **kwargs)

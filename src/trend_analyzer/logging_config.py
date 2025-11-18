@@ -55,16 +55,10 @@ class TrendAnalyzerLogger:
         file_handler.setFormatter(detailed_formatter)
         self.logger.addHandler(file_handler)
         
-        # Console handler for INFO and WARNING (stdout)
-        # Exclude ERROR+ to avoid duplication with error_handler
-        class InfoWarningFilter(logging.Filter):
-            def filter(self, record):
-                return record.levelno < logging.ERROR
-        
+        # Console handler for INFO and above (stdout)
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(console_formatter)
-        console_handler.addFilter(InfoWarningFilter())
         self.logger.addHandler(console_handler)
         
         # Error handler for ERROR and above (stderr)

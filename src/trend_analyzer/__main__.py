@@ -71,27 +71,14 @@ def execute_analysis(config_data):
         debug("   - Run trend analysis") 
         debug("   - Generate report")
         info("Analysis complete")
-        return True
     except Exception as e:
-        # Check if this is a missing table error
-        is_missing_table = (
-            "NoSuchTableError" in str(type(e)) or 
-            "agg_trend_descriptor" in str(e) or 
-            "agg_trend_normalizer" in str(e)
-        )
-        
-        if is_missing_table:
+        error(f"Analysis failed: {e}")
+        if "NoSuchTableError" in str(type(e)) or "agg_trend_descriptor" in str(e) or "agg_trend_normalizer" in str(e):
             error("Required database tables not found. Please ensure the following tables exist:")
             error("  - agg_trend_descriptor")
             error("  - agg_trend_normalizer")
             error("See database/*.sql for table definitions")
-            info("")
-            info("To skip analysis, set 'run_analysis: false' in config/analysis.yml")
-            return False
-        else:
-            # Re-raise unexpected errors
-            error(f"Analysis failed with unexpected error: {e}")
-            raise
+        raise
 
 
 def execute_data_tests(config_data):
@@ -144,10 +131,8 @@ def main():
     test_data = config_data.get("test_data", False)
     
     operations = []
-    if run_analysis:
-        operations.append("analysis")
-    if test_data:
-        operations.append("data testing")
+    if run_analysis: operations.append("analysis")
+    if test_data: operations.append("data testing")
     
     if not operations:
         warning("No operations enabled. Enable at least one in config/analysis.yml")
@@ -157,19 +142,21 @@ def main():
     debug(f"Operation flags - run_analysis: {run_analysis}, test_data: {test_data}")
     
     # Execute enabled operations
-    success = True
-    if test_data:
-        execute_data_tests(config_data)
+    try:
+        # TODO: understand this
+        if test_data:
+            execute_data_tests(config_data)
 
-    if run_analysis:
-        analysis_success = execute_analysis(config_data)
-        if not analysis_success:
-            success = False
-    
-    if success:
+        # TODO: understand this
+        if run_analysis:
+            execute_analysis(config_data)
+        
         info("Execution completed successfully")
-    else:
-        warning("Execution completed with warnings (see errors above)")
+    
+    except Exception as e:
+        error(f"Execution failed with error: {e}")
+        debug(f"Error details: {str(e)}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
     main()

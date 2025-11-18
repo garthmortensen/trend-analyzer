@@ -17,7 +17,7 @@ database:
   database: "aca_health"
   username: "etl"
   password: "etl"
-  schema: "public"
+  schema: "dw"
   # Optional server-side timeout in seconds applied per statement
   # example: 30 for 30s
   statement_timeout_seconds: 30

@@ -67,8 +67,11 @@ def execute_analysis(config_data):
     # Import and use PostgreSQL data access
     try:
         import json
+        import os
         from .data_access import get_trend_data_from_config
+        from .agent import run_analysis_sync
 
+        # TODO: is this even used by the agent?
         result = get_trend_data_from_config(config_data)
         
         # Print the SQL query
@@ -79,11 +82,21 @@ def execute_analysis(config_data):
         rows = json.loads(result["data"])
         info(f"Query returned {len(rows)} rows")
 
-        # TODO: implement AI analysis
-        info("Would execute AI analysis...")
-        debug("   - Run trend analysis")
-        debug("   - Generate report")
-        info("Analysis complete")
+        # Get iteration limit from config or environment
+        iterations = int(os.environ.get("AGENT_MAX_ITERATIONS", analysis_config.get("max_iterations", 10)))
+        
+        info(f"\nStarting AI-powered trend analysis (max {iterations} iterations)")
+        
+        # Run the analysis agent
+        report = run_analysis_sync(iterations=iterations)
+        
+        info("\nAnalysis complete")
+        
+        # Show preview of findings
+        if report:
+            preview = report[:500] + "..." if len(report) > 500 else report
+            info("\nAnalysis Preview:")
+            print("\n" + preview + "\n")
     except Exception as e:
         error(f"Analysis failed: {e}")
         if (

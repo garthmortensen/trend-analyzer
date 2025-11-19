@@ -12,8 +12,7 @@ import yaml
 from .logging_config import info, debug, error, warning
 from .config import config
 
-info("Starting Trend Analyzer...")
-
+info("===START TREND ANALYZER===")
 
 def load_config():
     """Load configuration from config directory - now uses infrastructure and analysis configs"""
@@ -67,12 +66,21 @@ def execute_analysis(config_data):
 
     # Import and use PostgreSQL data access
     try:
+        import json
         from .data_access import get_trend_data_from_config
 
         result = get_trend_data_from_config(config_data)
+        
+        # Print the SQL query
+        info("\nSQL Query Executed:")
+        print("\n" + result["sql"] + "\n")
+        
+        # Parse and display row count
+        rows = json.loads(result["data"])
+        info(f"Query returned {len(rows)} rows")
 
+        # TODO: implement AI analysis
         info("Would execute AI analysis...")
-        debug("   - Load data from PostgreSQL tables")
         debug("   - Run trend analysis")
         debug("   - Generate report")
         info("Analysis complete")
@@ -131,7 +139,7 @@ def execute_data_tests(config_data):
 
 def main():
     """Main entry point with comprehensive logging"""
-    info("Trend Analyzer starting up...")
+    info("TREND ANALYZER===arting up...")
 
     # Load the config files
     config_data = load_config()

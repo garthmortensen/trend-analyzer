@@ -33,7 +33,7 @@ def timestamp():
 async def get_trend_data_tool(
     group_by_dimensions: str = "",
     filters: str = "",
-    top_n: int = None
+    top_n: int = 999
 ) -> str:
     """
     Retrieve trend data from the descriptor table with optional grouping and filtering.
@@ -41,7 +41,7 @@ async def get_trend_data_tool(
     Args:
         group_by_dimensions: Comma-separated dimension names to group by (e.g. "state,year")
         filters: JSON string of filter list, e.g. '[{"dimension_name":"state","operator":"in","value":["CA","NY"]}]'
-        top_n: Maximum number of rows to return (default None = all rows)
+        top_n: Maximum number of rows to return. Default 999 (effectively unlimited). Use small values (10-20) only for quick previews.
         
     Returns:
         JSON string with analysis results including data, SQL, and config summary
@@ -168,18 +168,19 @@ async def get_dimension_values_tool(dimension_name: str) -> str:
 async def save_query_to_csv_tool(
     group_by_dimensions: str = "",
     filters: str = "",
-    top_n: int = None,
+    top_n: int = 999,
     description: str = ""
 ) -> str:
     """
     Execute a query and save the results to a timestamped CSV file in output_data/.
     Use this to preserve intermediate analysis data for later reference.
+    The default captures ALL rows - do not specify top_n unless you need to limit results.
     
     Args:
         group_by_dimensions: Comma-separated dimension names to group by (e.g. "state,year")
         filters: JSON string of filter list, e.g. '[{"dimension_name":"state","operator":"in","value":["CA","NY"]}]'
-        top_n: Maximum number of rows to return (default None = all rows)
-        description: Brief description of what this query captures (e.g. "Top readmission conditions")
+        top_n: Maximum rows (default 999 = all rows). Only specify small values (10-20) if you need a sample.
+        description: Brief description of what this query captures (e.g. "Service categories 2023-2024")
         
     Returns:
         Confirmation message with filename and row count
@@ -265,19 +266,24 @@ what's driving the changes. Focus on:
 
 Available Tools:
 - get_trend_data_tool: Query the claims descriptor table with grouping and filtering
+  * Default returns ALL rows (top_n=999)
+  * Set top_n=10 or top_n=20 only for quick previews during exploration
 - list_available_dimensions_tool: See all available dimensions
 - get_dimension_values_tool: Get distinct values for a dimension
 - save_query_to_csv_tool: Save query results to CSV file for key intermediate findings
+  * Default captures ALL rows - do NOT specify top_n parameter
+  * Complete data is crucial for thorough analysis
 
 Analysis Approach:
 1. Start by understanding what dimensions are available
-2. Query high-level trends (state, year, major categories)
+2. Query high-level trends with top_n=10 for initial exploration
 3. Drill down into specific areas showing large changes
-4. **Save important intermediate results to CSV** using save_query_to_csv_tool
-   - Use this for key findings that support your conclusions
-   - Add descriptive labels (e.g., "Top 10 readmission conditions 2024")
+4. **Save COMPLETE datasets to CSV** using save_query_to_csv_tool
+   - Do NOT specify top_n parameter - use the default to get all rows
+   - This ensures you capture complete data for thorough analysis
+   - Add descriptive labels (e.g., "Service categories by state 2023-2024")
 5. Form hypotheses and test them with targeted queries
-6. Provide clear findings and recommendations
+6. Provide clear findings and recommendations based on complete data
 
 Keep your analysis focused and data-driven. Use the PLAN-ACTION-REFLECT pattern:
 - PLAN: State your hypothesis

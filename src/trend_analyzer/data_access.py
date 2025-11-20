@@ -214,8 +214,9 @@ def get_trend_data_from_config(config_data):
     if select_columns:
         # order by first selected column for deterministic results
         query = query.order_by(columns_to_select[0])
-    if top_n is not None:
-        # Explicit top_n specified - use it
+    if top_n is not None and 0 < top_n < 999999:
+        # Explicit top_n specified with reasonable limit - use it
+        # Ignore top_n=0 (treat as unlimited) and top_n>=999999 (effectively unlimited)
         try:
             query = query.limit(int(top_n))
         except Exception:
@@ -224,7 +225,7 @@ def get_trend_data_from_config(config_data):
         # Pagination requested via page_size/page
         offset = (page - 1) * page_size
         query = query.limit(page_size).offset(offset)
-    # else: No limit - return all rows
+    # else: No limit - return all rows (including when top_n >= 999999)
 
     # best-effort: compile a literal SQL string for transparency/debugging
     try:

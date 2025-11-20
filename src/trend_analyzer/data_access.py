@@ -170,7 +170,13 @@ def get_trend_data_from_config(config_data):
     select_columns = analysis_config.get("select_columns")
     filters = analysis_config.get("filters", []) or []
     top_n = analysis_config.get("top_n")
-    page, page_size = _pagination_params(analysis_config)
+    # Only parse pagination if page or page_size explicitly provided
+    page = analysis_config.get("page")
+    page_size = analysis_config.get("page_size")
+    if page is not None or page_size is not None:
+        page, page_size = _pagination_params(analysis_config)
+    else:
+        page, page_size = None, None
 
     # database/schema from config
     database_config = {
@@ -208,15 +214,17 @@ def get_trend_data_from_config(config_data):
     if select_columns:
         # order by first selected column for deterministic results
         query = query.order_by(columns_to_select[0])
-    if top_n:
+    if top_n is not None:
+        # Explicit top_n specified - use it
         try:
             query = query.limit(int(top_n))
         except Exception:
             pass
-    else:
-        # Apply pagination when top_n not specified
+    elif page_size and page:
+        # Pagination requested via page_size/page
         offset = (page - 1) * page_size
         query = query.limit(page_size).offset(offset)
+    # else: No limit - return all rows
 
     # best-effort: compile a literal SQL string for transparency/debugging
     try:

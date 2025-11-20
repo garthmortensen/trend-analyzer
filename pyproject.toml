@@ -32,6 +32,7 @@ dependencies = [
     # Type safety
     "pydantic>=2.11.9",
     "openai>=1.107.3",
+    "vulture>=2.14",
 ]
 
 [build-system]

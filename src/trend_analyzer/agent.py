@@ -29,6 +29,11 @@ def timestamp():
 # Wrap data access functions as tools
 # ───────────────────────────────
 
+# @function_tool: Decorator from OpenAI Agents SDK that converts a Python function into a tool
+# the AI agent can call. It generates JSON schema for function parameters and handles serialization.
+#
+# async def: Required by OpenAI Agents SDK - all function_tool decorated functions must be async
+# even if they don't perform I/O operations. The SDK's Runner uses asyncio for event streaming.
 @function_tool
 async def get_trend_data_tool(
     group_by_dimensions: str = "",
@@ -93,6 +98,7 @@ Data Sample (first 3 rows):
         return f"Error retrieving trend data: {str(e)}"
 
 
+# @function_tool + async: Same as above - SDK requirement for tool registration and async execution
 @function_tool
 async def list_available_dimensions_tool() -> str:
     """
@@ -123,6 +129,7 @@ async def list_available_dimensions_tool() -> str:
         return f"Error listing dimensions: {str(e)}"
 
 
+# @function_tool + async: Same as above - SDK requirement for tool registration and async execution
 @function_tool
 async def get_dimension_values_tool(dimension_name: str) -> str:
     """
@@ -164,6 +171,7 @@ async def get_dimension_values_tool(dimension_name: str) -> str:
         return f"Error getting dimension values for '{dimension_name}': {str(e)}"
 
 
+# @function_tool + async: Same as above - SDK requirement for tool registration and async execution
 @function_tool
 async def save_query_to_csv_tool(
     group_by_dimensions: str = "",
@@ -351,6 +359,9 @@ When you've completed your analysis, clearly state your final findings and recom
 # Agent Creation and Execution
 # ───────────────────────────────
 
+# async def: This function is async to maintain consistency with the async execution pattern
+# used throughout the SDK. While it doesn't perform async I/O itself, it's called from
+# async contexts (run_analysis) and returns an Agent that will be used in async operations.
 async def create_analysis_agent(iterations: int = 10, model: str = None, timeout: int = None) -> Agent:
     """Create the trend analysis agent with tools and instructions.
     
@@ -381,6 +392,9 @@ async def create_analysis_agent(iterations: int = 10, model: str = None, timeout
     return agent
 
 
+# async def: REQUIRED for streaming agent execution. The SDK's Runner.run_streamed() returns
+# an async iterator (result.stream_events()) that must be consumed with "async for".
+# This function performs actual async I/O operations by streaming events from the OpenAI API.
 async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1, max_turns: int = 50):
     """Run the agent for one iteration (allows multiple tool calls within the turn).
     
@@ -462,6 +476,10 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
     return result, transcript, tool_call_count, max_turns_exceeded
 
 
+# async def: Main entry point for agent execution. Must be async because it:
+# 1. Calls await create_analysis_agent() to create the agent
+# 2. Calls await run_once_streamed() which performs async streaming I/O
+# 3. Uses asyncio to coordinate multiple async operations (agent creation, execution, streaming)
 async def run_analysis(iterations: int = 10) -> str:
     """
     Run the main trend analysis loop.
@@ -621,6 +639,9 @@ When you've completed your analysis, provide a clear final summary with recommen
         raise
 
 
+# NOT async: This is the synchronous wrapper that allows calling the async run_analysis()
+# from synchronous code (like __main__.py). Uses asyncio.run() to create an event loop,
+# execute the async function, and return the result. This bridges sync/async boundaries.
 def run_analysis_sync(iterations: int = 10) -> str:
     """Synchronous wrapper for run_analysis."""
     import asyncio

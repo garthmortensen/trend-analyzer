@@ -152,7 +152,7 @@ def execute_data_tests(config_data):
 
 def main():
     """Main entry point with comprehensive logging"""
-    info("TREND ANALYZER===arting up...")
+    info("TREND ANALYZER Starting")
 
     # Load the config files
     config_data = load_config()

@@ -11,15 +11,10 @@
 # ───────────────────────────────
 
 AGENT_ROLE = """
-You are a healthcare trend analysis expert specializing in health insurance claims analysis.
+You work in an health insurance company with ACA plans. Your objective is to analyze healthcare claims and discover 
+whats driving increases in claim costs. 
 
-Your goal is to analyze period-over-period trends (2023 vs 2024) in the data and explain
-what's driving the changes. Focus on:
-
-1. Identifying the largest cost drivers
-2. Understanding utilization patterns
-3. Finding anomalies or significant changes
-4. Providing actionable insights
+1. Identifying the largest cost drivers and provide sql queries to support your findings
 """
 
 TOOL_DESCRIPTIONS = """
@@ -39,10 +34,14 @@ get_trend_data_tool:
   * Use for exploratory analysis and hypothesis testing
 
 save_query_to_csv_tool:
-  * Default captures ALL rows - do NOT specify top_n parameter
-  * Use this to preserve key intermediate findings
-  * Complete data is crucial for thorough analysis
-  * Add descriptive labels (e.g., "Service categories by state 2023-2024")
+  * CRITICAL: Pass the SAME group_by_dimensions and filters from your get_trend_data_tool query
+  * Example workflow:
+    1. Call get_trend_data_tool(group_by_dimensions="year,channel", filters='[{"dimension_name":"channel","operator":"=","value":"IP"}]')
+    2. If results are interesting, call save_query_to_csv_tool with IDENTICAL parameters:
+       save_query_to_csv_tool(group_by_dimensions="year,channel", filters='[{"dimension_name":"channel","operator":"=","value":"IP"}]', description="IP claims by year")
+  * Do NOT pass empty strings for group_by_dimensions/filters unless you truly want ungrouped raw data
+  * Default captures ALL rows - do NOT specify top_n parameter  
+  * Add descriptive labels explaining what analysis this data supports
 """
 
 ANALYSIS_WORKFLOW = """
@@ -50,12 +49,18 @@ Analysis Approach:
 1. Start by understanding what dimensions are available
 2. Query high-level trends with top_n=10 for initial exploration
 3. Drill down into specific areas showing large changes
-4. **Save COMPLETE datasets to CSV** using save_query_to_csv_tool
+4. **Save DIFFERENT analysis perspectives to CSV** using save_query_to_csv_tool:
+   - Save 3-5 DIFFERENT queries that support your findings
+   - Each CSV should have DIFFERENT grouping/filtering (e.g., by year, by channel, by provider, by condition)
+   - Use the SAME group_by_dimensions and filters from your successful get_trend_data_tool calls
    - Do NOT specify top_n parameter - use the default to get all rows
-   - This ensures you capture complete data for thorough analysis
-   - Add descriptive labels for each dataset
+   - Add descriptive labels explaining what each dataset shows
+   - Example varied exports:
+     * "Major service categories year-over-year" (grouped by year, major_service_category)
+     * "Top provider groups by allowed costs" (grouped by provider_group_name, filtered to 2024)
+     * "IP readmission conditions" (grouped by ccsr_description, filtered to channel=IP)
 5. Form hypotheses and test them with targeted queries
-6. Provide clear findings and recommendations based on complete data
+6. Provide clear findings and recommendations based on complete data evidence from your CSV exports
 """
 
 REASONING_PATTERN = """
@@ -93,15 +98,22 @@ def make_analysis_prompt(iterations: int) -> str:
 ITERATION BUDGET:
 You have {iterations} iterations to complete your analysis. Use them wisely:
 - Early iterations: Explore and understand the data
-- Middle iterations: Drill into specific findings and **SAVE key data to CSV**
+- Middle iterations: Drill into specific findings and **SAVE 3-5 DIFFERENT queries to CSV**
 - Final iterations: Synthesize insights and provide recommendations
 
-IMPORTANT: Use save_query_to_csv_tool to preserve intermediate data that supports your findings.
-Examples of data to save:
-- Top conditions by cost
-- Year-over-year comparisons by state
-- High utilization provider groups
-- Any data table you reference in your conclusions
+CRITICAL CSV EXPORT REQUIREMENTS:
+Save 3-5 DIFFERENT analysis perspectives that support your recommendations:
+1. Each CSV must use DIFFERENT group_by_dimensions and/or filters
+2. Copy the exact parameters from successful get_trend_data_tool calls
+3. Do NOT export the same query multiple times with different descriptions
+4. Examples of DIVERSE exports:
+   - Cost trends by year + major_service_category (shows service mix changes)
+   - Top 20 provider groups by allowed costs filtered to 2024 (shows provider concentration)
+   - Readmission conditions grouped by ccsr_description filtered to channel=IP (shows clinical drivers)
+   - State-level trends grouped by state + year (shows geographic variation)
+   - High-cost member segment grouped by clinical_segment + mutually_exclusive_hcc_condition (shows population risk)
+
+Each export should answer a DIFFERENT analytical question that supports your final recommendations.
 
 When you've completed your analysis, clearly state your final findings and recommendations.
 """

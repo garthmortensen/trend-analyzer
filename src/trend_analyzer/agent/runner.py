@@ -115,11 +115,28 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
             elif it.type == "tool_call_item":
                 tool_call_count += 1
                 ts = timestamp()
-                tool_args = json.dumps(it.raw_item.arguments, indent=2)
+                
+                # Format args in a readable way without escape characters
+                args_dict = it.raw_item.arguments
+                formatted_args = []
+                for key, value in args_dict.items():
+                    # Handle string values that might be JSON
+                    if isinstance(value, str) and value.startswith('['):
+                        try:
+                            # Try to parse as JSON for better formatting
+                            parsed = json.loads(value)
+                            formatted_args.append(f"     {key}: {json.dumps(parsed, indent=6)}")
+                        except:
+                            formatted_args.append(f"     {key}: {value}")
+                    else:
+                        formatted_args.append(f"     {key}: {value}")
+                
+                args_text = "\n".join(formatted_args)
+                
                 info(f"[{ts}] -> TOOL #{tool_call_count}: {it.raw_item.name}")
-                info(f"   Args: {tool_args}")
+                info(f"   Args:\n{args_text}")
                 transcript.append(f"\n[{ts}] -> TOOL #{tool_call_count}: {it.raw_item.name}")
-                transcript.append(f"   Args: {tool_args}")
+                transcript.append(f"   Args:\n{args_text}")
             
             # Tool result
             elif it.type == "tool_call_output_item":

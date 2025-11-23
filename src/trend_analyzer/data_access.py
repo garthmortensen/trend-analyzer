@@ -6,8 +6,6 @@
 # desc: PostgreSQL data access for trend analyzer (queries prebuilt descriptor/norm tables)
 # === FILE META CLOSING ===
 
-print("Loading data_access module...")
-
 import json
 from typing import Any, Dict, List, Optional, Tuple
 import os
@@ -163,7 +161,7 @@ def _pagination_params(analysis_cfg: Dict[str, Any]) -> Tuple[int, int]:
 
 def get_trend_data_from_config(config_data):
     """Select rows from prebuilt descriptor table with optional filtering and projection."""
-    print("[INFO] Selecting trend data from prebuilt tables...")
+    # Query execution (verbose logging removed)
 
     analysis_config = (config_data or {}).get("analyze", {}) or {}
     # choose columns to return (optional); otherwise return the full row
@@ -259,7 +257,7 @@ def get_trend_data_from_config(config_data):
 
 def list_available_dimensions(config_data):
     """Return available columns for descriptor table (name -> type)."""
-    print("[INFO] Listing available columns from descriptor table...")
+    # List dimensions (verbose logging removed)
 
     database_config = {
         "database": (config_data or {}).get("database") or config.get_database_config()
@@ -276,7 +274,7 @@ def list_available_dimensions(config_data):
 
 def get_dimension_values(dimension_name, config_data):
     """Get distinct non-null values for a given column from the descriptor table."""
-    print(f"[INFO] Getting values for column: {dimension_name}")
+    # Get dimension values (verbose logging removed)
 
     database_config = {
         "database": (config_data or {}).get("database") or config.get_database_config()

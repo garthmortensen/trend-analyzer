@@ -8,12 +8,13 @@
 
 import json
 import csv
+import os
 from datetime import datetime
 from pathlib import Path
 
 from agents import function_tool
 
-from ..logging_config import info, error
+from ..logging_config import info, debug, error
 from ..data_access import get_trend_data_from_config, list_available_dimensions, get_dimension_values
 from ..config import config
 
@@ -66,13 +67,10 @@ async def get_trend_data_tool(
         
         result = get_trend_data_from_config(config_data)
         
-        # Log the SQL query executed
-        if "sql" in result:
-            info(f">> SQL Query Executed:\n{result['sql']}")
-        
-        # Parse the data to show summary
+        # Parse the data
         rows = json.loads(result["data"])
-        info(f"   Success: {len(rows)} rows returned")
+        # Log summary only (SQL is verbose, goes to report via tool response)
+        debug(f"Query returned {len(rows)} rows")
         
         # Format response for agent
         response = f"""
@@ -109,12 +107,8 @@ async def list_available_dimensions_tool() -> str:
         config_data = {"database": config.get_database_config()}
         result = list_available_dimensions(config_data)
         
-        # Log the SQL query executed
-        if "sql" in result:
-            info(f">> SQL Query Executed:\n{result['sql']}")
-        
         dims = json.loads(result["data"])
-        info(f"   Success: {len(dims)} dimensions found")
+        debug(f"Retrieved {len(dims)} available dimensions")
         
         response = "AVAILABLE DIMENSIONS:\n\n"
         for dim_name, dim_type in sorted(dims.items()):
@@ -143,12 +137,8 @@ async def get_dimension_values_tool(dimension_name: str) -> str:
         config_data = {"database": config.get_database_config()}
         result = get_dimension_values(dimension_name, config_data)
         
-        # Log the SQL query executed
-        if "sql" in result:
-            info(f">> SQL Query Executed:\n{result['sql']}")
-        
         values = json.loads(result["data"])
-        info(f"   Success: {len(values)} distinct values for '{dimension_name}'")
+        debug(f"Retrieved {len(values)} distinct values for '{dimension_name}'")
         
         response = f"DIMENSION VALUES for '{dimension_name}':\n\n"
         
@@ -208,21 +198,39 @@ async def save_query_to_csv_tool(
         
         result = get_trend_data_from_config(config_data)
         
-        # Log the SQL query executed
-        if "sql" in result:
-            info(f">> SQL Query for CSV Export:\n{result['sql']}")
-        
         # Parse the data
         rows = json.loads(result["data"])
+        debug(f"CSV export query returned {len(rows)} rows")
         
         if not rows:
             return "No data returned from query - CSV not created."
         
-        # Generate timestamped filename
+        # Get run-specific CSV directory from environment variable
+        csv_dir = os.environ.get("TREND_ANALYZER_CSV_DIR")
+        if csv_dir:
+            output_dir = Path(csv_dir)
+        else:
+            # Fallback to old behavior if not set (backward compatibility)
+            output_dir = Path("output_data")
+            output_dir.mkdir(exist_ok=True)
+        
+        # Generate descriptive filename from query parameters
+        import hashlib
+        
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = Path("output_data")
-        output_dir.mkdir(exist_ok=True)
-        filename = f"{ts}_data.csv"
+        
+        # Create descriptive name from dimensions
+        if group_by_list:
+            dim_part = "_".join(group_by_list[:3])  # Use first 3 dimensions
+        else:
+            dim_part = "ungrouped"
+        
+        # Create hash of query to ensure uniqueness
+        query_str = f"{group_by_dimensions}|{filters}|{top_n}"
+        query_hash = hashlib.md5(query_str.encode()).hexdigest()[:6]
+        
+        # Build filename: timestamp_dimensions_hash.csv
+        filename = f"{ts}_{dim_part}_{query_hash}.csv"
         filepath = output_dir / filename
         
         # Write to CSV
@@ -231,10 +239,8 @@ async def save_query_to_csv_tool(
             writer.writeheader()
             writer.writerows(rows)
         
-        # Log success
-        info(f"   >> CSV Saved: {filepath} ({len(rows)} rows)")
-        if description:
-            info(f"   >> Description: {description}")
+        # Log success summary
+        info(f"CSV saved: {filepath.name} ({len(rows)} rows)")
         
         response = f"""
 CSV DATA EXPORTED SUCCESSFULLY:

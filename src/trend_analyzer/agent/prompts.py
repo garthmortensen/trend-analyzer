@@ -50,8 +50,13 @@ save_query_to_csv_tool:
   * Default captures ALL rows - do NOT specify top_n parameter
   * Add descriptive labels explaining what analysis this data supports
   
-Important: Do NOT call too many tools in one iteration - at most 3 tool calls per iteration.
-Then reflect, synthesize your findings, and move to the next iteration.
+Important Tool Call Guidelines:
+- Maximum 3 tool calls per iteration
+- REQUIRED: Every 2-3 iterations, save at least one interesting query result to CSV
+- Each CSV export MUST be DIFFERENT - vary dimensions, filters, or drill-down level
+- DO NOT save the same query multiple times - each CSV should provide unique analytical value
+- Use save_query_to_csv_tool to preserve diverse analytical perspectives
+- Then reflect, synthesize your findings, and move to the next iteration
 """
 
 ANALYSIS_WORKFLOW = """
@@ -95,14 +100,16 @@ Analysis Steps:
 
 3. **Save Key Findings to CSV:**
    * Throughout your analysis, save 3-5 DIFFERENT queries that support your findings
+   * CRITICAL: Each CSV MUST be DIFFERENT - different dimensions, filters, or analysis level
    * Each CSV should represent a DIFFERENT analytical perspective:
-     - Service mix changes (grouped by year + major_service_category)
-     - Provider concentration (grouped by provider_group_name, filtered to latest year)
-     - Clinical drivers (grouped by condition, filtered to specific channels)
-     - Geographic variation (grouped by state + year)
-     - Population risk (grouped by clinical_segment + hcc_condition)
+     - High-level overview (e.g., grouped by year + channel)
+     - Service drill-down (e.g., grouped by year + channel + ccsr_system_description) 
+     - Provider analysis (e.g., grouped by provider_group_name + year, filtered to specific channel)
+     - Geographic breakdown (e.g., grouped by state + year + channel)
+     - Clinical deep-dive (e.g., grouped by ccsr_description + year, filtered to high-cost conditions)
    * Use IDENTICAL parameters from your successful get_trend_data_tool calls
-   * Do NOT export the same query multiple times
+   * VERIFY you're not saving duplicate queries - check your previous CSV exports
+   * Each export should advance the analysis story with new data
 
 4. **Drill Deeply - Key Requirements:**
    * Going down one or two levels is RARELY sufficient
@@ -169,7 +176,10 @@ You are in the EXPLORATION phase. Your task is to:
 - Continue drilling down into drivers you've identified
 - Test new hypotheses about what's causing trends
 - Call tools to gather more data
-- Save interesting findings to CSV
+- REQUIRED: Save at least one interesting query result to CSV every 2-3 iterations
+
+CSV Export Requirement: You should have at least {current // 3} CSV files saved by now.
+Use save_query_to_csv_tool with the same parameters as successful get_trend_data_tool calls.
 
 DO NOT attempt to summarize or conclude. You MUST output PLAN + tool calls for further investigation.
 If you think you've run out of avenues, that's a sign you haven't drilled deep enough - keep going!

@@ -106,7 +106,8 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                     if s.type == "summary_text"
                 )
                 if thought:
-                    info(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):")
+                    # Only print to console, don't log (keeps analytical content out of logs)
+                    print(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):")
                     print(thought)
                     transcript.append(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
             
@@ -150,7 +151,23 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                 args_text = "\n".join(formatted_args)
                 
                 tool_msg = f"-> TOOL #{tool_call_count}: {it.raw_item.name}\nArgs:\n{args_text}"
-                info(f"\n[{ts}] {tool_msg}")
+                
+                # Log tool call with key parameters for infrastructure tracking
+                # Create concise parameter summary for log
+                param_summary = []
+                for key, value in args_dict.items():
+                    if isinstance(value, str):
+                        # Truncate long strings
+                        val_str = value[:50] + "..." if len(value) > 50 else value
+                    elif isinstance(value, (list, dict)):
+                        val_str = f"{type(value).__name__}[{len(value)}]"
+                    else:
+                        val_str = str(value)
+                    param_summary.append(f"{key}={val_str}")
+                
+                params_log = ", ".join(param_summary) if param_summary else "no args"
+                info(f"Tool call #{tool_call_count}: {it.raw_item.name}({params_log})")
+                
                 transcript.append(f"\n[{ts}] {tool_msg}")
             
             # Tool result
@@ -161,7 +178,8 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
             # Assistant message
             elif it.type == "message_output_item":
                 msg = it.content if hasattr(it, 'content') else str(it)
-                info(f"\n[{ts}] << ASSISTANT:")
+                # Only print to console, don't log (keeps analytical content out of logs)
+                print(f"\n[{ts}] << ASSISTANT:")
                 print(msg)
                 transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg}")
         
@@ -203,10 +221,62 @@ async def run_analysis(iterations: int = 10) -> str:
     Returns:
         str: Path to the generated report file
     """
+    # Create timestamped run directory structure
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_base_dir = config.get_output_dir()
+    run_dir = os.path.join(output_base_dir, run_timestamp)
+    os.makedirs(run_dir, exist_ok=True)
+    
+    # Reconfigure logger to write to run directory
+    from ..logging_config import reconfigure_log_file
+    log_file_path = os.path.join(run_dir, "analysis.log")
+    reconfigure_log_file(log_file_path)
+    
+    # Create data subdirectory for CSVs
+    csv_output_dir = os.path.join(run_dir, "data")
+    os.makedirs(csv_output_dir, exist_ok=True)
+    
+    # Create config subdirectory and copy config files for reproducibility
+    config_output_dir = os.path.join(run_dir, "config")
+    os.makedirs(config_output_dir, exist_ok=True)
+    
+    # Copy config files to run directory
+    import shutil
+    from pathlib import Path
+    
+    # Go up 4 levels from runner.py: agent/ -> trend_analyzer/ -> src/ -> project_root/
+    config_dir = Path(__file__).parent.parent.parent.parent / "config"
+    debug(f"Looking for config files in: {config_dir}")
+    config_files = ["analysis.yml", "dimensions.yml", "infrastructure.yml"]
+    
+    copied_count = 0
+    for config_file in config_files:
+        source = config_dir / config_file
+        if source.exists():
+            dest = Path(config_output_dir) / config_file
+            try:
+                shutil.copy2(source, dest)
+                debug(f"Copied config: {config_file} -> {dest}")
+                copied_count += 1
+            except Exception as e:
+                error(f"Failed to copy {config_file}: {e}")
+        else:
+            error(f"Config file not found: {source}")
+    
+    if copied_count > 0:
+        info(f"Copied {copied_count} config files to {config_output_dir}")
+    else:
+        error("No config files were copied!")
+    
+    # Set environment variables so tools know where to save CSVs
+    os.environ["TREND_ANALYZER_RUN_DIR"] = run_dir
+    os.environ["TREND_ANALYZER_CSV_DIR"] = csv_output_dir
+    
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info("=" * 60)
     info(f"[{ts}] Starting Trend Analysis Agent")
     info(f"Max iterations: {iterations}")
+    info(f"Run directory: {run_dir}")
     info("=" * 60)
     
     # Verify OpenAI API key
@@ -252,8 +322,8 @@ async def run_analysis(iterations: int = 10) -> str:
 ╚════════════════════════════════════════════════════════════════╝
 """
     
-    # Log SDK stack once at start
-    info(sdk_stack_diagram)
+    # SDK stack diagram saved to report only, not logged
+    debug("SDK architecture diagram will be included in report")
     
     # Run iterative analysis loop with phase-specific prompts
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -282,11 +352,12 @@ async def run_analysis(iterations: int = 10) -> str:
             info(f"[{ts}] ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE")
             info("=" * 60)
             
-            # Log the system prompt for full transparency
-            info(f"\n[{ts}] System Prompt for Iteration {current_iter}:")
-            info("-" * 60)
-            info(system_prompt)
-            info("-" * 60)
+            # Add iteration marker to transcript for report structuring
+            iteration_marker = f"\n[{ts}] === ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE ==="
+            all_transcripts.append(iteration_marker)
+            
+            # Log iteration start (system prompt details saved in report only)
+            debug(f"System prompt generated for iteration {current_iter} ({phase} phase)")
             
             # Store system prompt for final report
             all_system_prompts.append({
@@ -300,12 +371,17 @@ async def run_analysis(iterations: int = 10) -> str:
             
             # Build user message
             if current_iter == 1:
-                user_msg = """Begin the trend analysis.
+                user_msg = f"""Begin the trend analysis.
 
 Start by understanding what dimensions are available, then systematically drill down into key drivers.
 Follow the PLAN-ACTION-REFLECT pattern for each analytical step.
 
-CRITICAL: As you discover important findings, use save_query_to_csv_tool to preserve diverse datasets.
+CSV EXPORT REQUIREMENT: You MUST save diverse query results to CSV files throughout your analysis:
+- Target: 3-5 different CSV files by the end of exploration
+- Use save_query_to_csv_tool after discovering interesting patterns
+- Each CSV should capture a DIFFERENT analytical perspective (service mix, provider patterns, geographic trends, etc.)
+- CSV files will be saved to: {csv_output_dir}
+
 Remember: maximum 3 tool calls per iteration, then reflect and move to next iteration."""
             else:
                 # Continue conversation - provide context from previous iteration
@@ -411,72 +487,335 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
         # Get metadata
         db_config = config.get_database_config()
         
-        # Build comprehensive report with SDK stack and all system prompts
-        full_report = "=" * 60 + "\n"
-        full_report += "TREND ANALYSIS REPORT\n"
-        full_report += "=" * 60 + "\n\n"
+        # Build comprehensive markdown report with proper hierarchy
+        full_report = "# Trend Analysis Report\n\n"
         
-        # SDK Stack Diagram
-        full_report += sdk_stack_diagram
-        full_report += "\n\n"
+        full_report += "## Table of Contents\n\n"
+        full_report += "1. [Report Metadata](#report-metadata)\n"
+        full_report += "2. [OpenAI Agents SDK Stack](#openai-agents-sdk-stack)\n"
+        full_report += "3. [System Prompts Per Iteration](#system-prompts-per-iteration)\n"
+        full_report += "4. [Analysis Transcript](#analysis-transcript)\n"
+        for i in range(1, len(all_system_prompts) + 1):
+            full_report += f"   - [Iteration {i}](#iteration-{i})\n"
+        full_report += "5. [Final Summary](#final-summary)\n\n"
+        
+        full_report += "---\n\n"
         
         # Report metadata
-        full_report += "REPORT METADATA:\n"
-        full_report += "-" * 60 + "\n"
-        full_report += f"Generated: {ts}\n"
-        full_report += f"AI Model: {model}\n"
-        full_report += f"Max Iterations: {iterations}\n"
-        full_report += f"Iterations Completed: {len(all_system_prompts)}\n"
-        full_report += f"Total Tool Calls: {total_tool_calls}\n"
-        full_report += f"Database: {db_config.get('database', 'N/A')}\n"
-        full_report += f"Schema: {db_config.get('schema', 'N/A')}\n"
-        full_report += f"Host: {db_config.get('host', 'N/A')}:{db_config.get('port', 'N/A')}\n"
+        full_report += "## Report Metadata\n\n"
+        full_report += f"- **Generated**: {ts}\n"
+        full_report += f"- **Run Directory**: `{run_dir}`\n"
+        full_report += f"- **Log File**: `{log_file_path}`\n"
+        full_report += f"- **Config Files**: `{config_output_dir}`\n"
+        full_report += f"- **CSV Output**: `{csv_output_dir}`\n"
+        full_report += f"- **AI Model**: `{model}`\n"
+        full_report += f"- **Max Iterations**: {iterations}\n"
+        full_report += f"- **Iterations Completed**: {len(all_system_prompts)}\n"
+        full_report += f"- **Total Tool Calls**: {total_tool_calls}\n"
+        full_report += f"- **Database**: `{db_config.get('database', 'N/A')}`\n"
+        full_report += f"- **Schema**: `{db_config.get('schema', 'N/A')}`\n"
+        full_report += f"- **Host**: `{db_config.get('host', 'N/A')}:{db_config.get('port', 'N/A')}`\n\n"
         
         # Add filter configuration
         filters = analysis_config.get('filters', [])
         if filters:
-            full_report += f"Filters Applied: {len(filters)}\n"
+            full_report += f"### Filters Applied ({len(filters)})\n\n"
             for f in filters:
                 dim = f.get('dimension_name', '?')
                 op = f.get('operator', '?')
                 val = f.get('value', '?')
-                full_report += f"  - {dim} {op} {val}\n"
+                full_report += f"- `{dim} {op} {val}`\n"
+            full_report += "\n"
         
-        full_report += "\n" + "=" * 60 + "\n\n"
+        full_report += "---\n\n"
+        
+        # SDK Stack Diagram
+        full_report += "## OpenAI Agents SDK Stack\n\n"
+        full_report += "```\n"
+        full_report += sdk_stack_diagram.strip()
+        full_report += "\n```\n\n"
+        full_report += "---\n\n"
         
         # System prompts section - show what instructions were given each iteration
-        full_report += "SYSTEM PROMPTS PER ITERATION:\n"
-        full_report += "-" * 60 + "\n"
+        full_report += "## System Prompts Per Iteration\n\n"
+        full_report += "_System prompts provided to the AI agent for each iteration._\n\n"
+        
         for prompt_info in all_system_prompts:
-            full_report += f"\nIteration {prompt_info['iteration']} ({prompt_info['phase'].upper()} phase):\n"
+            full_report += f"### Iteration {prompt_info['iteration']} - {prompt_info['phase'].upper()} Phase\n\n"
             full_report += prompt_info['prompt']
-            full_report += "\n" + "-" * 60 + "\n"
+            full_report += "\n\n"
         
-        full_report += "\n" + "=" * 60 + "\n\n"
+        full_report += "---\n\n"
         
-        # Analysis transcript
-        full_report += "ANALYSIS TRANSCRIPT:\n"
-        full_report += "\n".join(all_transcripts)
-        full_report += "\n\n" + "=" * 60 + "\n"
+        # Analysis transcript - organize by iteration
+        full_report += "## Analysis Transcript\n\n"
+        full_report += "_Detailed log of all agent actions, tool calls, and reasoning._\n\n"
+        
+        # Group transcript entries by iteration
+        current_iteration_entries = []
+        current_iteration_num = 1
+        current_iteration_phase = "EXPLORATION"  # Default phase
+        
+        for entry in all_transcripts:
+            # Check if this is a new iteration marker
+            if "=== ITERATION" in entry and " PHASE ===" in entry:
+                # Extract iteration number and phase from marker
+                import re
+                match = re.search(r'ITERATION (\d+) of \d+ - (\w+) PHASE', entry)
+                if match:
+                    new_iter_num = int(match.group(1))
+                    new_phase = match.group(2).title()  # Convert "EXPLORATION" to "Exploration"
+                    
+                    # Save previous iteration's entries (if any)
+                    if current_iteration_entries:
+                        full_report += f"### Iteration {current_iteration_num} - {current_iteration_phase} Phase\n\n"
+                        for transcript_entry in current_iteration_entries:
+                            # Parse entry type
+                            if ">> THOUGHT" in transcript_entry:
+                                full_report += "#### Agent Reasoning\n\n"
+                                thought_text = transcript_entry.split(">> THOUGHT")[1].strip()
+                                full_report += f"{thought_text}\n\n"
+                            elif "-> TOOL #" in transcript_entry:
+                                full_report += "#### Tool Call\n\n"
+                                full_report += f"```\n{transcript_entry.strip()}\n```\n\n"
+                            elif "<- TOOL RESULT" in transcript_entry:
+                                full_report += "#### Tool Result\n\n"
+                                full_report += f"```\n{transcript_entry.strip()}\n```\n\n"
+                            elif "<< ASSISTANT" in transcript_entry:
+                                full_report += "#### Assistant Response\n\n"
+                                response_text = transcript_entry.split("<< ASSISTANT:")[1].strip() if "<< ASSISTANT:" in transcript_entry else transcript_entry.strip()
+                                full_report += f"{response_text}\n\n"
+                            elif "/!\\" in transcript_entry and "LOOP DETECTED" in transcript_entry:
+                                full_report += "#### Loop Detection Warning\n\n"
+                                full_report += f"```\n{transcript_entry.strip()}\n```\n\n"
+                            else:
+                                # Generic entry
+                                full_report += f"{transcript_entry}\n\n"
+                        
+                        full_report += "---\n\n"
+                    
+                    # Reset for next iteration using the extracted iteration number and phase
+                    current_iteration_entries = []
+                    current_iteration_num = new_iter_num
+                    current_iteration_phase = new_phase
+            else:
+                current_iteration_entries.append(entry)
+        
+        # Don't forget the last iteration
+        if current_iteration_entries:
+            full_report += f"### Iteration {current_iteration_num} - {current_iteration_phase} Phase\n\n"
+            for transcript_entry in current_iteration_entries:
+                if ">> THOUGHT" in transcript_entry:
+                    full_report += "#### Agent Reasoning\n\n"
+                    thought_text = transcript_entry.split(">> THOUGHT")[1].strip()
+                    full_report += f"{thought_text}\n\n"
+                elif "-> TOOL #" in transcript_entry:
+                    full_report += "#### Tool Call\n\n"
+                    full_report += f"```\n{transcript_entry.strip()}\n```\n\n"
+                elif "<- TOOL RESULT" in transcript_entry:
+                    full_report += "#### Tool Result\n\n"
+                    full_report += f"```\n{transcript_entry.strip()}\n```\n\n"
+                elif "<< ASSISTANT" in transcript_entry:
+                    full_report += "#### Assistant Response\n\n"
+                    response_text = transcript_entry.split("<< ASSISTANT:")[1].strip() if "<< ASSISTANT:" in transcript_entry else transcript_entry.strip()
+                    full_report += f"{response_text}\n\n"
+                elif "/!\\" in transcript_entry and "LOOP DETECTED" in transcript_entry:
+                    full_report += "#### Loop Detection Warning\n\n"
+                    full_report += f"```\n{transcript_entry.strip()}\n```\n\n"
+                else:
+                    full_report += f"{transcript_entry}\n\n"
+            
+            full_report += "---\n\n"
         
         # Final summary
-        full_report += "FINAL SUMMARY:\n"
-        full_report += "=" * 60 + "\n\n"
+        full_report += "## Final Summary\n\n"
         full_report += final_report
         
-        # Save to file
-        output_dir = config.get_output_dir()
-        os.makedirs(output_dir, exist_ok=True)
-        filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_trend_analysis_report.out"
-        output_file = os.path.join(output_dir, filename)
+        # Save markdown report to run directory
+        report_filename = "trend_analysis_report.md"
+        report_path = os.path.join(run_dir, report_filename)
         
-        with open(output_file, "w") as f:
+        with open(report_path, "w") as f:
             f.write(full_report)
         
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        info(f"\n[{ts}] Report saved to: {output_file}")
+        # Convert markdown to HTML and save
+        try:
+            import markdown
+            
+            # Convert markdown to HTML with extensions for better formatting
+            html_content = markdown.markdown(
+                full_report,
+                extensions=[
+                    'extra',           # Tables, footnotes, etc.
+                    'codehilite',      # Syntax highlighting
+                    'toc',             # Table of contents
+                    'fenced_code',     # Code blocks
+                    'tables'           # Tables support
+                ]
+            )
+            
+            # Wrap in full HTML document with styling
+            html_document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trend Analysis Report - {run_timestamp}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        h2 {{
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }}
+        h3 {{
+            color: #7f8c8d;
+            margin-top: 20px;
+        }}
+        h4 {{
+            color: #95a5a6;
+            margin-top: 15px;
+        }}
+        code {{
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+        }}
+        pre {{
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            line-height: 1.4;
+        }}
+        pre code {{
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }}
+        th {{
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f9f9f9;
+        }}
+        blockquote {{
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            padding: 10px 20px;
+            background-color: #f0f7fb;
+        }}
+        hr {{
+            border: none;
+            border-top: 2px solid #ecf0f1;
+            margin: 30px 0;
+        }}
+        ul, ol {{
+            margin: 15px 0;
+            padding-left: 30px;
+        }}
+        li {{
+            margin: 8px 0;
+        }}
+        a {{
+            color: #3498db;
+            text-decoration: none;
+        }}
+        a:hover {{
+            text-decoration: underline;
+        }}
+        details {{
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }}
+        summary {{
+            cursor: pointer;
+            font-weight: bold;
+            color: #495057;
+            padding: 5px;
+        }}
+        summary:hover {{
+            color: #3498db;
+        }}
+        .toc {{
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+{html_content}
+    </div>
+</body>
+</html>"""
+            
+            # Save HTML report
+            html_filename = "trend_analysis_report.html"
+            html_path = os.path.join(run_dir, html_filename)
+            
+            with open(html_path, "w") as f:
+                f.write(html_document)
+            
+            info(f"HTML report generated: {html_filename}")
+            
+        except ImportError:
+            error("markdown library not installed - HTML report not generated")
+            error("Install with: pip install markdown")
+            html_path = None
+        except Exception as e:
+            error(f"Failed to generate HTML report: {e}")
+            html_path = None
         
-        return full_report
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        info(f"\n[{ts}] Markdown report saved to: {report_path}")
+        if html_path:
+            info(f"[{ts}] HTML report saved to: {html_path}")
+        info(f"[{ts}] Log file saved to: {log_file_path}")
+        info(f"[{ts}] CSV files saved to: {csv_output_dir}")
+        info(f"[{ts}] Config files saved to: {config_output_dir}")
+        
+        return report_path
         
     except Exception as e:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

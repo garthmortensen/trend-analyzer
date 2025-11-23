@@ -109,6 +109,30 @@ class TrendAnalyzerLogger:
         """Log critical message"""
         self.logger.critical(message, **kwargs)
 
+    def reconfigure_log_file(self, new_log_path):
+        """Reconfigure logger to write to a new file location (e.g., run directory)"""
+        new_log_path = Path(new_log_path)
+        
+        # Remove existing file handlers
+        for handler in self.logger.handlers[:]:
+            if isinstance(handler, logging.FileHandler):
+                handler.close()
+                self.logger.removeHandler(handler)
+        
+        # Create new file handler
+        detailed_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        
+        file_handler = logging.FileHandler(new_log_path, encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(detailed_formatter)
+        self.logger.addHandler(file_handler)
+        
+        self.log_file_path = new_log_path
+        self.logger.info(f"Log file relocated to: {new_log_path}")
+
 
 # Global logger instance
 logger = TrendAnalyzerLogger()
@@ -143,3 +167,8 @@ def error(message, **kwargs):
 def critical(message, **kwargs):
     """Log critical message"""
     logger.critical(message, **kwargs)
+
+
+def reconfigure_log_file(new_log_path):
+    """Reconfigure logger to write to new file location"""
+    logger.reconfigure_log_file(new_log_path)

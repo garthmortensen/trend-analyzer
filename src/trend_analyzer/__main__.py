@@ -95,7 +95,6 @@ def execute_analysis(config_data):
         # Show preview of findings
         if report:
             preview = report[:500] + "..." if len(report) > 500 else report
-            info("\nAnalysis Preview:")
             print("\n" + preview + "\n")
     except Exception as e:
         error(f"Analysis failed: {e}")

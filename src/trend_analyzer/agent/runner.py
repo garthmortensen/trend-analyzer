@@ -12,9 +12,13 @@ from datetime import datetime
 
 from agents import Agent, Runner, RunConfig
 from agents.exceptions import MaxTurnsExceeded
+from colorama import Fore, Back, Style, init
 
 from ..logging_config import info, debug, error
 from ..config import config
+
+# Initialize colorama for cross-platform color support
+init(autoreset=True)
 from .tools import (
     get_trend_data_tool,
     list_available_dimensions_tool,
@@ -107,8 +111,8 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                 )
                 if thought:
                     # Only print to console, don't log (keeps analytical content out of logs)
-                    print(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):")
-                    print(thought)
+                    print(f"\n{Fore.CYAN}[{ts}] >> THOUGHT (Iteration {iteration_num}):{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}{thought}{Style.RESET_ALL}")
                     transcript.append(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
             
             # Tool call
@@ -168,6 +172,10 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                 params_log = ", ".join(param_summary) if param_summary else "no args"
                 info(f"Tool call #{tool_call_count}: {it.raw_item.name}({params_log})")
                 
+                # Print tool call to console with color
+                print(f"\n{Fore.YELLOW}[{ts}] -> TOOL #{tool_call_count}: {it.raw_item.name}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Args: {params_log}{Style.RESET_ALL}")
+                
                 transcript.append(f"\n[{ts}] {tool_msg}")
             
             # Tool result
@@ -179,8 +187,8 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
             elif it.type == "message_output_item":
                 msg = it.content if hasattr(it, 'content') else str(it)
                 # Only print to console, don't log (keeps analytical content out of logs)
-                print(f"\n[{ts}] << ASSISTANT:")
-                print(msg)
+                print(f"\n{Fore.GREEN}[{ts}] << ASSISTANT:{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}{msg}{Style.RESET_ALL}")
                 transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg}")
         
         info(f"[Iteration {iteration_num}] Completed successfully. Tool calls: {tool_call_count}")
@@ -272,12 +280,26 @@ async def run_analysis(iterations: int = 10) -> str:
     os.environ["TREND_ANALYZER_RUN_DIR"] = run_dir
     os.environ["TREND_ANALYZER_CSV_DIR"] = csv_output_dir
     
+    banner = """
+    ▄▄▄▄▄▄ ▄▄▄▄  ▄▄▄▄▄ ▄▄  ▄▄ ▄▄▄▄         ▄▄▄  ▄▄  ▄▄  ▄▄▄  ▄▄  ▄▄ ▄▄ ▄▄▄▄▄ ▄▄▄▄▄ ▄▄▄▄
+      ██   ██▄█▄ ██▄▄  ███▄██ ██▀██ g▄▄▄m ██▀██ ███▄██ ██▀██ ██  ▀███▀   ▄█▀ ██▄▄  ██▄█▄
+      ██   ██ ██ ██▄▄▄ ██ ▀██ ████▀       ██▀██ ██ ▀██ ██▀██ ██▄▄▄ █   ▄██▄▄ ██▄▄▄ ██ ██"""
+    # Print banner in red to console
+    print(f"{Fore.RED}{Style.BRIGHT}{banner}{Style.RESET_ALL}")
+    
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info("=" * 60)
     info(f"[{ts}] Starting Trend Analysis Agent")
     info(f"Max iterations: {iterations}")
     info(f"Run directory: {run_dir}")
     info("=" * 60)
+    
+    # Print colored startup message to console
+    print(f"\n{Fore.CYAN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}{Style.BRIGHT}Starting Trend Analysis Agent{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Max iterations: {iterations}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Run directory: {run_dir}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}\n")
     
     # Verify OpenAI API key
     if not os.getenv("OPENAI_API_KEY"):
@@ -351,6 +373,11 @@ async def run_analysis(iterations: int = 10) -> str:
             info("\n" + "=" * 60)
             info(f"[{ts}] ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE")
             info("=" * 60)
+            
+            # Print colored iteration header to console
+            print(f"\n{Fore.MAGENTA}{Back.BLACK}{'=' * 60}{Style.RESET_ALL}")
+            print(f"{Fore.MAGENTA}{Back.BLACK}[{ts}] ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE{Style.RESET_ALL}")
+            print(f"{Fore.MAGENTA}{Back.BLACK}{'=' * 60}{Style.RESET_ALL}\n")
             
             # Add iteration marker to transcript for report structuring
             iteration_marker = f"\n[{ts}] === ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE ==="
@@ -434,6 +461,10 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
                     warning_msg = f"\n[{ts_loop}] /!\\ LOOP DETECTED: Agent is repeating the same tool calls. Breaking out of analysis loop."
                     info(warning_msg)
                     all_transcripts.append(warning_msg)
+                    
+                    # Print colored warning to console
+                    print(f"\n{Fore.RED}{Style.BRIGHT}LOOP DETECTED: Agent is repeating the same tool calls{Style.RESET_ALL}")
+                    print(f"{Fore.RED}Breaking out of analysis loop...{Style.RESET_ALL}\n")
                     
                     # Add diagnostic info
                     loop_info = "\n\nLOOP DETECTION DETAILS:"
@@ -814,6 +845,15 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
         info(f"[{ts}] Log file saved to: {log_file_path}")
         info(f"[{ts}] CSV files saved to: {csv_output_dir}")
         info(f"[{ts}] Config files saved to: {config_output_dir}")
+        
+        # Print colored completion message to console
+        print(f"\n{Fore.GREEN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}{Style.BRIGHT}Analysis Complete!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}Markdown report: {report_path}{Style.RESET_ALL}")
+        if html_path:
+            print(f"{Fore.GREEN}HTML report: {html_path}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}CSV files: {csv_output_dir}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}\n")
         
         return report_path
         

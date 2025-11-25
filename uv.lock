@@ -1091,6 +1091,7 @@ name = "trend-analyzer"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "colorama" },
     { name = "markdown" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -1110,6 +1111,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "colorama", specifier = ">=0.4.6" },
     { name = "markdown", specifier = ">=3.10" },
     { name = "matplotlib", specifier = ">=3.10.6" },
     { name = "numpy", specifier = ">=2.3.3" },

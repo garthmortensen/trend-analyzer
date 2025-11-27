@@ -77,8 +77,8 @@ async def get_trend_data_tool(
 TREND DATA ANALYSIS RESULTS:
 
 Configuration:
-- Grouping: {', '.join(group_by_dimensions) if group_by_dimensions else 'None'}
-- Filters Applied: {len(filters) if filters else 0}
+- Grouping: {', '.join(group_by_list) if group_by_list else 'None'}
+- Filters Applied: {len(filters_list) if filters_list else 0}
 - Top N Limit: {top_n or 'All records'}
 - Total Rows Returned: {len(rows)}
 

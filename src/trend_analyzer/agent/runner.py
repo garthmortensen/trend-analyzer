@@ -12,13 +12,11 @@ from datetime import datetime
 
 from agents import Agent, Runner, RunConfig
 from agents.exceptions import MaxTurnsExceeded
-from colorama import Fore, Back, Style, init
 
 from ..logging_config import info, debug, error
 from ..config import config
+from ..display import create_analysis_progress, log_step, print_banner, console
 
-# Initialize colorama for cross-platform color support
-init(autoreset=True)
 from .tools import (
     get_trend_data_tool,
     list_available_dimensions_tool,
@@ -110,9 +108,8 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                     if s.type == "summary_text"
                 )
                 if thought:
-                    # Only print to console, don't log (keeps analytical content out of logs)
-                    print(f"\n{Fore.CYAN}[{ts}] >> THOUGHT (Iteration {iteration_num}):{Style.RESET_ALL}")
-                    print(f"{Fore.CYAN}{thought}{Style.RESET_ALL}")
+                    # Log to file only (console output suppressed to avoid disrupting progress bars)
+                    debug(f"[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
                     transcript.append(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
             
             # Tool call
@@ -172,9 +169,8 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                 params_log = ", ".join(param_summary) if param_summary else "no args"
                 info(f"Tool call #{tool_call_count}: {it.raw_item.name}({params_log})")
                 
-                # Print tool call to console with color
-                print(f"\n{Fore.YELLOW}[{ts}] -> TOOL #{tool_call_count}: {it.raw_item.name}{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Args: {params_log}{Style.RESET_ALL}")
+                # Log to console
+                log_step(f"  [magenta]Tool Call:[/magenta] {it.raw_item.name}({params_log})")
                 
                 transcript.append(f"\n[{ts}] {tool_msg}")
             
@@ -182,13 +178,15 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
             elif it.type == "tool_call_output_item":
                 result_preview = str(it.output)[:200] if hasattr(it, 'output') else "N/A"
                 debug(f"[{ts}] <- TOOL RESULT (preview): {result_preview}...")
+                
+                # Log to console
+                log_step(f"  [green]Result:[/green] {result_preview}...")
             
             # Assistant message
             elif it.type == "message_output_item":
                 msg = it.content if hasattr(it, 'content') else str(it)
-                # Only print to console, don't log (keeps analytical content out of logs)
-                print(f"\n{Fore.GREEN}[{ts}] << ASSISTANT:{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}{msg}{Style.RESET_ALL}")
+                # Log to file only (console output suppressed to avoid disrupting progress bars)
+                debug(f"[{ts}] << ASSISTANT:\n{msg}")
                 transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg}")
         
         info(f"[Iteration {iteration_num}] Completed successfully. Tool calls: {tool_call_count}")
@@ -280,12 +278,8 @@ async def run_analysis(iterations: int = 10) -> str:
     os.environ["TREND_ANALYZER_RUN_DIR"] = run_dir
     os.environ["TREND_ANALYZER_CSV_DIR"] = csv_output_dir
     
-    banner = """
-    ▄▄▄▄▄▄ ▄▄▄▄  ▄▄▄▄▄ ▄▄  ▄▄ ▄▄▄▄         ▄▄▄  ▄▄  ▄▄  ▄▄▄  ▄▄  ▄▄ ▄▄ ▄▄▄▄▄ ▄▄▄▄▄ ▄▄▄▄
-      ██   ██▄█▄ ██▄▄  ███▄██ ██▀██ g▄▄▄m ██▀██ ███▄██ ██▀██ ██  ▀███▀   ▄█▀ ██▄▄  ██▄█▄
-      ██   ██ ██ ██▄▄▄ ██ ▀██ ████▀       ██▀██ ██ ▀██ ██▀██ ██▄▄▄ █   ▄██▄▄ ██▄▄▄ ██ ██"""
-    # Print banner in red to console
-    print(f"{Fore.RED}{Style.BRIGHT}{banner}{Style.RESET_ALL}")
+    # Log banner
+    print_banner()
     
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info("=" * 60)
@@ -294,12 +288,10 @@ async def run_analysis(iterations: int = 10) -> str:
     info(f"Run directory: {run_dir}")
     info("=" * 60)
     
-    # Print colored startup message to console
-    print(f"\n{Fore.CYAN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{Style.BRIGHT}Starting Trend Analysis Agent{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}Max iterations: {iterations}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}Run directory: {run_dir}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}\n")
+    # Print startup message to console
+    log_step("[bold cyan]Starting Trend Analysis Agent[/bold cyan]")
+    log_step(f"[cyan]Max iterations: {iterations}[/cyan]")
+    log_step(f"[cyan]Run directory: {run_dir}[/cyan]")
     
     # Verify OpenAI API key
     if not os.getenv("OPENAI_API_KEY"):
@@ -361,6 +353,11 @@ async def run_analysis(iterations: int = 10) -> str:
     tool_call_history = []  # Track all tool calls for loop detection
     final_result = None
     
+    # Initialize progress bars
+    progress = create_analysis_progress()
+    progress.start()
+    analysis_task = progress.add_task("[green]Analysis Progress", total=iterations)
+    
     try:
         for current_iter in range(1, iterations + 1):
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -369,15 +366,14 @@ async def run_analysis(iterations: int = 10) -> str:
             phase = get_iteration_phase(current_iter, iterations)
             system_prompt = make_analysis_prompt(iterations, current_iteration=current_iter)
             
+            progress.update(analysis_task, description=f"[green]Iteration {current_iter}/{iterations} - {phase.upper()}")
+            
             # Log iteration header with phase
             info("\n" + "=" * 60)
             info(f"[{ts}] ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE")
             info("=" * 60)
             
-            # Print colored iteration header to console
-            print(f"\n{Fore.MAGENTA}{Back.BLACK}{'=' * 60}{Style.RESET_ALL}")
-            print(f"{Fore.MAGENTA}{Back.BLACK}[{ts}] ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE{Style.RESET_ALL}")
-            print(f"{Fore.MAGENTA}{Back.BLACK}{'=' * 60}{Style.RESET_ALL}\n")
+            # Console output suppressed - progress bars show iteration status
             
             # Add iteration marker to transcript for report structuring
             iteration_marker = f"\n[{ts}] === ITERATION {current_iter} of {iterations} - {phase.upper()} PHASE ==="
@@ -433,16 +429,22 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
                 user_msg = "".join(user_msg_parts)
             
             # Run one iteration (max_turns=5 allows agent to think AND call tools in same iteration)
-            result, transcript, tool_calls, tool_calls_made = await run_once_streamed(
-                agent,
-                user_msg=user_msg,
-                iteration_num=current_iter,
-                max_turns=5
-            )
+            with console.status(f"[bold green]Iteration {current_iter} ({phase}) - Processing turns...", spinner="dots"):
+                result, transcript, tool_calls, tool_calls_made = await run_once_streamed(
+                    agent,
+                    user_msg=user_msg,
+                    iteration_num=current_iter,
+                    max_turns=5
+                )
             
             all_transcripts.extend(transcript)
             total_tool_calls += tool_calls
             tool_call_history.extend(tool_calls_made)  # Track all tool calls
+            
+            # Complete iteration progress
+            progress.update(analysis_task, advance=1)
+            
+            # Console output suppressed - progress bars show completion status
             
             # Detect repetitive tool call patterns (loop detection)
             if len(tool_call_history) >= 6:
@@ -462,9 +464,9 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
                     info(warning_msg)
                     all_transcripts.append(warning_msg)
                     
-                    # Print colored warning to console
-                    print(f"\n{Fore.RED}{Style.BRIGHT}LOOP DETECTED: Agent is repeating the same tool calls{Style.RESET_ALL}")
-                    print(f"{Fore.RED}Breaking out of analysis loop...{Style.RESET_ALL}\n")
+                    # Print warning to console
+                    log_step("[bold red]LOOP DETECTED: Agent is repeating the same tool calls[/bold red]")
+                    log_step("[red]Breaking out of analysis loop...[/red]")
                     
                     # Add diagnostic info
                     loop_info = "\n\nLOOP DETECTION DETAILS:"
@@ -522,41 +524,85 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
         full_report = "# Trend Analysis Report\n\n"
         
         full_report += "## Table of Contents\n\n"
-        full_report += "1. [Report Metadata](#report-metadata)\n"
-        full_report += "2. [OpenAI Agents SDK Stack](#openai-agents-sdk-stack)\n"
-        full_report += "3. [System Prompts Per Iteration](#system-prompts-per-iteration)\n"
-        full_report += "4. [Analysis Transcript](#analysis-transcript)\n"
+        full_report += "1. [Analysis Flow](#analysis-flow)\n"
+        full_report += "2. [Report Metadata](#report-metadata)\n"
+        full_report += "3. [OpenAI Agents SDK Stack](#openai-agents-sdk-stack)\n"
+        full_report += "4. [System Prompts Per Iteration](#system-prompts-per-iteration)\n"
+        full_report += "5. [Analysis Transcript](#analysis-transcript)\n"
         for i in range(1, len(all_system_prompts) + 1):
             full_report += f"   - [Iteration {i}](#iteration-{i})\n"
-        full_report += "5. [Final Summary](#final-summary)\n\n"
+        full_report += "6. [Final Summary](#final-summary)\n\n"
         
         full_report += "---\n\n"
         
-        # Report metadata
-        full_report += "## Report Metadata\n\n"
-        full_report += f"- **Generated**: {ts}\n"
-        full_report += f"- **Run Directory**: `{run_dir}`\n"
-        full_report += f"- **Log File**: `{log_file_path}`\n"
-        full_report += f"- **Config Files**: `{config_output_dir}`\n"
-        full_report += f"- **CSV Output**: `{csv_output_dir}`\n"
-        full_report += f"- **AI Model**: `{model}`\n"
-        full_report += f"- **Max Iterations**: {iterations}\n"
-        full_report += f"- **Iterations Completed**: {len(all_system_prompts)}\n"
-        full_report += f"- **Total Tool Calls**: {total_tool_calls}\n"
-        full_report += f"- **Database**: `{db_config.get('database', 'N/A')}`\n"
-        full_report += f"- **Schema**: `{db_config.get('schema', 'N/A')}`\n"
-        full_report += f"- **Host**: `{db_config.get('host', 'N/A')}:{db_config.get('port', 'N/A')}`\n\n"
+        # Add Mermaid diagram showing analysis flow
+        full_report += "## Analysis Flow\n\n"
+        full_report += "```mermaid\n"
+        full_report += "graph TD\n"
+        full_report += "    A[Start Analysis] --> B[Configure Environment]\n"
+        full_report += "    B --> C[Exploration Phase]\n"
+        full_report += "    C --> D{More Iterations?}\n"
+        full_report += "    D -->|Yes| E[Deep Dive]\n"
+        full_report += "    E --> F{Data Complete?}\n"
+        full_report += "    F -->|No| C\n"
+        full_report += "    F -->|Yes| G[Synthesis Phase]\n"
+        full_report += "    G --> H[Final Phase]\n"
+        full_report += "    H --> I[Generate Reports]\n"
+        full_report += "    I --> J[Save MD/HTML/CSV]\n"
+        full_report += "    D -->|No| I\n"
+        full_report += "\n"
+        full_report += "    style A fill:#e1f5ff\n"
+        full_report += "    style C fill:#fff4e1\n"
+        full_report += "    style E fill:#fff4e1\n"
+        full_report += "    style G fill:#e8f5e9\n"
+        full_report += "    style H fill:#e8f5e9\n"
+        full_report += "    style J fill:#f3e5f5\n"
+        full_report += "```\n\n"
         
-        # Add filter configuration
+        full_report += "---\n\n"
+        
+        # Report metadata as table
+        full_report += "## Report Metadata\n\n"
+        full_report += "| Metric | Value |\n"
+        full_report += "|--------|-------|\n"
+        full_report += f"| **Generated** | {ts} |\n"
+        full_report += f"| **Run Directory** | `{run_dir}` |\n"
+        full_report += f"| **Log File** | `{log_file_path}` |\n"
+        full_report += f"| **Config Files** | `{config_output_dir}` |\n"
+        full_report += f"| **CSV Output** | `{csv_output_dir}` |\n"
+        full_report += f"| **AI Model** | `{model}` |\n"
+        full_report += f"| **Max Iterations** | {iterations} |\n"
+        full_report += f"| **Iterations Completed** | {len(all_system_prompts)} |\n"
+        full_report += f"| **Total Tool Calls** | {total_tool_calls} |\n"
+        full_report += f"| **Database** | `{db_config.get('database', 'N/A')}` |\n"
+        full_report += f"| **Schema** | `{db_config.get('schema', 'N/A')}` |\n"
+        full_report += f"| **Host** | `{db_config.get('host', 'N/A')}:{db_config.get('port', 'N/A')}` |\n\n"
+        
+        # Add filter configuration table
         filters = analysis_config.get('filters', [])
         if filters:
-            full_report += f"### Filters Applied ({len(filters)})\n\n"
+            full_report += "### Filters Applied\n\n"
+            full_report += "| Dimension | Operator | Value |\n"
+            full_report += "|-----------|----------|-------|\n"
             for f in filters:
                 dim = f.get('dimension_name', '?')
                 op = f.get('operator', '?')
                 val = f.get('value', '?')
-                full_report += f"- `{dim} {op} {val}`\n"
+                full_report += f"| `{dim}` | `{op}` | `{val}` |\n"
             full_report += "\n"
+        
+        # Add iteration phases timeline diagram
+        full_report += "### Iteration Timeline\n\n"
+        full_report += "```mermaid\n"
+        full_report += "gantt\n"
+        full_report += "    title Analysis Iteration Phases\n"
+        full_report += "    dateFormat X\n"
+        full_report += "    axisFormat %s\n"
+        for idx, prompt_info in enumerate(all_system_prompts, 1):
+            phase = prompt_info['phase'].upper()
+            full_report += f"    section Iteration {idx}\n"
+            full_report += f"    {phase} Phase : {idx}, {idx+1}\n"
+        full_report += "```\n\n"
         
         full_report += "---\n\n"
         
@@ -846,18 +892,24 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
         info(f"[{ts}] CSV files saved to: {csv_output_dir}")
         info(f"[{ts}] Config files saved to: {config_output_dir}")
         
-        # Print colored completion message to console
-        print(f"\n{Fore.GREEN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}{Style.BRIGHT}Analysis Complete!{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}Markdown report: {report_path}{Style.RESET_ALL}")
+        # Stop progress bar
+        progress.stop()
+        
+        # Print completion message to console
+        log_step(f"[bold green]{'=' * 60}[/bold green]")
+        log_step("[bold green]Analysis Complete![/bold green]")
+        log_step(f"[green]Markdown report: {report_path}[/green]")
         if html_path:
-            print(f"{Fore.GREEN}HTML report: {html_path}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}CSV files: {csv_output_dir}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}{Style.BRIGHT}{'=' * 60}{Style.RESET_ALL}\n")
+            log_step(f"[green]HTML report: {html_path}[/green]")
+        log_step(f"[green]CSV files: {csv_output_dir}[/green]")
+        log_step(f"[bold green]{'=' * 60}[/bold green]")
         
         return report_path
         
     except Exception as e:
+        # Stop progress bar
+        progress.stop()
+        
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         error(f"\n[{ts}] Analysis failed: {e}")
         raise

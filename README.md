@@ -2,115 +2,69 @@
 
 ## First-Time Setup
 
-### Prerequisites
-- Python >= 3.13
-- [uv](https://github.com/astral-sh/uv) package manager (recommended) or pip
-- PostgreSQL database with prebuilt `agg_trend_descriptor` and `agg_trend_normalizer` tables
-
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd trend-analyzer
-   ```
+First clone and setup aca_health repo, and then:
 
-2. **Create and activate a virtual environment with uv**
-   ```bash
-   # Install uv if not already installed
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   
-   # Create virtual environment and install dependencies
-   uv sync
-   ```
+```bash
+# 1. Clone and setup
+git clone <repository-url>
+cd trend-analyzer
 
-3. **Configure environment variables**
-   ```bash
-   # Copy the example env file
-   cp .env.example .env
-   
-   # Edit .env with your credentials
-   # Required:
-   #   - OPENAI_API_KEY (for AI features)
-   #   - DB_USERNAME, DB_PASSWORD (database credentials)
-   # Optional:
-   #   - DB_HOST, DB_PORT, DB_NAME (override config/infrastructure.yml)
-   ```
+# 2. Configure environment
+cp .env.example .env
 
-4. **Set up configuration files**
-   
-   Ensure the following config files exist in `config/`:
-   - `infrastructure.yml` - Database and output settings
-   - `analysis.yml` - Analysis operation flags
-   - `dimensions.yml` - Dimension and metric definitions
+# 3. Install uv and dependencies
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync
 
-5. **Prepare database tables**
-   
-   The application requires two prebuilt PostgreSQL tables:
-   - `agg_trend_descriptor` - Main trend data with all dimension columns
-   - `agg_trend_normalizer` - Normalization data for trend calculations
-   
-   See `database/agg_trend_descriptor.sql` and `database/agg_trend_normalizer.sql` for table definitions.
-
-6. **Run script**
-   ```bash
-   # Run a quick test (requires database connection and tables)
-   uv run python -m trend_analyzer
-   ```
+# 4. Run
+uv run python -m trend_analyzer
+```
 
 ## Top-down flowchart
 
 The project workflow is illustrated by the following flowchart.
 
 ```mermaid
-graph TD
-    subgraph "Phase 1: Setup and Data Prep"
-        direction LR
-        A[Start] --> B{Initialize<br>Notebook};
-        B --> C[Install Dependencies<br>& Authenticate];
-        C --> D[Define YAML<br>Configuration];
-        D -- "Defines dimensions,<br>metrics, tables" --> E{Generate SQL};
-        E --> F["Execute BigQuery SQL to<br>Generate Analysis Tables"];
-    F --> G["(Now upstream) Descriptor & Norm Tables Ready"];
+flowchart TD
+    %% Simplified overview: setup, core tools, iterative loop
+
+    subgraph Setup
+        A[Start] --> C[Load config]
+        C --> D{DB ready?}
+        D -->|yes| E[Reflect tables]
     end
 
-    subgraph "Phase 2: Agent & Tool Definition"
+    %% Load Tools (Option B condensed list)
+    subgraph Load Tools
+            E --> T1[get_trend_data]
+            T1 --> T2[list_dims]
+            T2 --> T3[dim_values]
+            T3 --> T4[save_csv]
+            T4 --> R1[run_analysis_sync]
+            E -.-> U1[ai_runner.ask]
+        end
+
+    subgraph Loop
         direction LR
-        H{Define<br>AI Agent} --> I["Set Agent's System<br>Prompt & Analysis Plan"];
-        I --> J[Define Data<br>Access Functions];
-        J -- Wraps --> K{Create<br>Agent Tools};
-        K --> L[Data Analysis<br>Tools];
-        K --> M[Reporting<br>Tools];
+        R1 --> L0
+        L0[loop i=1..N] --> L1[HYPOTHESIZE make_analysis_prompt]
+            L1 --> L2[QUERY get_trend_data]
+        L2 --> L3[RESULTS rows+sql]
+        L3 --> L4[ANALYZE interpret metrics]
+        L4 --> L5[REFINE next dims/filters]
+        L5 --> L6[RECORD save_query_to_csv_tool]
+        L6 --> L7{i < N ?}
+        L7 -- yes --> L1
     end
 
-    subgraph "Phase 3: Iterative Analysis Loop"
-        direction LR
-        N{Start Analysis<br>Loop} --> O{"Agent: Formulate<br>Hypothesis (PLAN)"};
-        O --> P{"Agent: Select<br>Tool(s)"};
-        P --> Q["Execute Tool Call<br>e.g., get_trend_data(...)"];
-        Q --> R{Get Results<br>from BigQuery};
-        R --> S{"Agent: Interpret<br>Results (REFLECT)"};
-        S --> T{Update Report};
-        T --> U[Append to<br>Google Doc];
-        U --> V{More<br>Iterations?};
-        V -- Yes --> O;
-    end
+    L7 -- no --> O1[Synthesize]
+    O1 --> O2[Write report]
 
-    subgraph "Phase 4: Finalization"
-        direction LR
-        W{Synthesize<br>Findings} --> X["Generate Final<br>Summary &<br>Recommendations"];
-        X --> Y["Write Final Report<br>to Google Doc"];
-        Y --> Z[End];
-    end
-
-    G --> H;
-    M --> N;
-    L --> N;
-    V -- No --> W;
-
-
-    style B fill:#944,stroke:#333,stroke-width:2px
-    style H fill:#944,stroke:#333,stroke-width:2px
-    style N fill:#944,stroke:#333,stroke-width:2px
-    style W fill:#944,stroke:#333,stroke-width:2px
+    classDef decision fill:#944,stroke:#333,stroke-width:2px,color:#fff
+    class D,L7 decision
 ```
+
+    Note: The app does not auto-create tables. If missing, run the SQL in `database/*.sql` to create `agg_trend_descriptor` and `agg_trend_normalizer` before analysis.
+    Phases legend: HYPOTHESIZE = form next analytical question; QUERY = fetch grouped data; RESULTS = raw rows + compiled SQL; ANALYZE = interpret PMPM/mix shifts; REFINE = choose new dimensions or filters; RECORD = persist snapshot (CSV) for provenance; loop continues while i < N.

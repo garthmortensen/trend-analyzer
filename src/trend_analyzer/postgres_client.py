@@ -98,19 +98,6 @@ class PostgreSQLClient:
         except Exception:
             return pd.DataFrame()
 
-    def execute_ddl(self, sql: str) -> bool:
-        """Execute DDL statements (create, drop, etc.)."""
-        if not self.engine:
-            if not self.connect():
-                return False
-
-        try:
-            with self.engine.begin() as conn:
-                conn.execute(text(sql))
-            return True
-        except Exception:
-            return False
-
     def table_exists(self, table_name: str, schema: str = "public") -> bool:
         """Check if a table exists using information_schema."""
         sql = f"""

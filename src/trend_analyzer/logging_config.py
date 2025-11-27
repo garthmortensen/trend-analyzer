@@ -8,7 +8,6 @@
 
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
 import json
 
@@ -23,15 +22,7 @@ class TrendAnalyzerLogger:
         self._setup_logging()
 
     def _setup_logging(self):
-        """Setup logging with timestamped file and console output"""
-        # Create logs directory
-        logs_dir = Path("logs")
-        logs_dir.mkdir(exist_ok=True)
-
-        # Generate timestamped filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_file_path = logs_dir / f"{timestamp}.log"
-
+        """Setup logging with console output only (file logging disabled)"""
         # Create logger
         self.logger = logging.getLogger("trend_analyzer")
         self.logger.setLevel(self.log_level)
@@ -40,18 +31,7 @@ class TrendAnalyzerLogger:
         self.logger.handlers.clear()
 
         # Create formatters
-        detailed_formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-
         console_formatter = logging.Formatter("%(levelname)s: %(message)s")
-
-        # File handler (detailed logs)
-        file_handler = logging.FileHandler(self.log_file_path, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(detailed_formatter)
-        self.logger.addHandler(file_handler)
 
         # Console handler for INFO and above (stdout)
         console_handler = logging.StreamHandler(sys.stdout)
@@ -66,7 +46,7 @@ class TrendAnalyzerLogger:
         self.logger.addHandler(error_handler)
 
         # Log initial setup
-        self.logger.info(f"Logging initialized - file: {self.log_file_path}")
+        self.logger.info("Logging initialized - console only")
 
     def log_config(self, config_name, config_data):
         """Log configuration data in a structured format"""

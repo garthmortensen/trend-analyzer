@@ -1,5 +1,6 @@
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from .logging_config import info
 
 console = Console()
 
@@ -26,3 +27,4 @@ def print_banner():
       ██   ██ ██ ██▄▄▄ ██ ▀██ ████▀       ██▀██ ██ ▀██ ██▀██ ██▄▄▄ █   ▄██▄▄ ██▄▄▄ ██ ██
     ...................................................................................."""
     console.print(f"[bold red]{banner}[/bold red]")
+    info(banner)

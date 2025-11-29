@@ -33,6 +33,16 @@ def timestamp():
 #
 # async def: Required by OpenAI Agents SDK - all function_tool decorated functions must be async
 # even if they don't perform I/O operations. The SDK's Runner uses asyncio for event streaming.
+
+# Another way to say this...
+# Take your Python function and its type hints
+# Turn it into a tool definition with:
+# name (usually the function name)
+# description (from the docstring)
+# parameters (a JSON Schema built from the arguments + type hints)
+# https://platform.openai.com/docs/guides/function-calling
+
+# Register that with the model as a tool of "type": "function".
 @function_tool
 async def get_trend_data_tool(
     group_by_dimensions: str = "",

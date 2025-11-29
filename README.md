@@ -41,7 +41,9 @@ uv sync
 uv run python -m trend_analyzer
 ```
 
-## Top-down flowchart/
+## Illustrations
+
+### Top-down flowchart
 
 The project workflow is illustrated by the following flowchart.
 
@@ -84,6 +86,31 @@ flowchart TD
     classDef decision fill:#944,stroke:#333,stroke-width:2px,color:#fff
     class D,L7 decision
 ```
+
+### Trend Analyzer Agent
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant M as Model
+    participant T as Tool
+
+    Note over M,T: 1) Tool definitions provided
+
+    U->>M: "Explain IP cost drivers 2023→2024"
+    M->>T: get_trend_data_tool
+    T->>M: data payload
+    Note over M: Plans next step
+
+    M->>T: save_cached_result_tool
+    T->>M: saved_csv reference
+    Note over M: Data saved
+
+    M->>U: Final explanation
+    Note over U,M: Loop ends
+```
+
 
 ## Agent loop sequence
 

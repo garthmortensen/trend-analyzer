@@ -1,4 +1,6 @@
-# Trend Analyzer Agent – Beginner Explanation
+# Agent-driven analysis overview
+
+This documentation is built from openai docs, sometimes customized for this project.
 
 An "agent" just adds a controlled loop around the prompt model so it can:
 - ask for data via tools
@@ -289,47 +291,3 @@ The response:
 5. Else (no tools, no JSON) → treat its text as final and stop.
 
 Add a step counter (e.g., max 8) to avoid infinite loops.
-
----
-## 8. Mapping to This Repo
-- `agent/tools.py`: Define Python functions the agent can call.
-- `agent/runner.py`: Implement the loop (orchestration).
-- `data_access.py`: Actual DB logic; tools should wrap its functions.
-- `ai_runner.py`: Currently does a one-shot call; extend or parallel this with an agent loop for multi-step reasoning.
-
-
-
-
-```mermaid
-graph TD
-    U[User prompt: weather in Paris] --> M[Model with tools]
-
-    M -->|Can answer directly| A[Final text response]
-    M -->|Needs external data| TC[Tool call: get_weather with location=Paris]
-
-    TC --> XT[External tool or API]
-    XT --> TO[Tool call output: JSON or text]
-
-    TO --> M2[Model again with prompt + tools + tool output]
-    M2 --> A
-
-    subgraph Concepts
-        T1[Tools: capabilities like get_weather, get_account_details, issue_refund]
-        T2[Tool call: model requests a tool with arguments]
-        T3[Tool call output: result returned by your code]
-    end
-
-    M --> T1
-    M --> T2
-    XT --> T3
-
-    subgraph Tool_Types
-        F[Function tools: JSON schema, structured arguments]
-        C[Custom tools: free text in and out]
-        B[Built-in tools: web search, code exec, MCP servers]
-    end
-
-    T1 --> F
-    T1 --> C
-    T1 --> B
-```

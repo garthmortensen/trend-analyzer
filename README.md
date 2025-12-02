@@ -43,6 +43,70 @@ uv run python -m trend_analyzer
 
 ## Illustrations
 
+### Sequence diagram: detail low
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant M as Model
+    participant T as Tool
+
+    Note over M,T: 1) Tool definitions provided
+
+    U->>M: "Explain IP cost drivers 2023→2024"
+    M->>T: get_trend_data_tool
+    T->>M: data payload
+    Note over M: Plans next step
+
+    M->>T: save_cached_result_tool
+    T->>M: saved_csv reference
+    Note over M: Data saved
+
+    M->>U: Final explanation
+    Note over U,M: Loop ends
+```
+
+
+### Sequence diagram: detail high
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Runner as run_analysis_sync
+    participant Agent
+    participant Tools
+    participant DB as PostgreSQL (SQLAlchemy)
+    participant OpenAI as OpenAI SDK
+    participant FS as Filesystem
+
+    User->>Runner: start(iterations=N)
+    loop i=1..N
+        Runner->>Agent: make_analysis_prompt [LLM]
+        Agent->>OpenAI: generate hypothesis
+        OpenAI-->>Agent: prompt text
+
+        Agent->>Tools: get_trend_data
+        Tools->>DB: SELECT via SQLAlchemy
+        DB-->>Tools: rows + compiled SQL
+        Tools-->>Agent: results
+
+        Agent->>OpenAI: interpret metrics [LLM]
+        OpenAI-->>Agent: insights / next dims+filters
+
+        Agent->>Tools: save_query_to_csv
+        Tools->>FS: write CSV
+        FS-->>Tools: ok
+
+        Agent->>Runner: continue?
+        Runner-->>Agent: i < N ?
+    end
+
+    Agent->>Runner: synthesize findings
+    Runner->>FS: write report
+```
+
 ### Top-down flowchart
 
 The project workflow is illustrated by the following flowchart.
@@ -87,67 +151,31 @@ flowchart TD
     class D,L7 decision
 ```
 
-### Trend Analyzer Agent
+The code uses iterations 1-(n-3) for data exploration, and with the final 3 iterations, synthesizes and finalizes.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant U as User
-    participant M as Model
-    participant T as Tool
-
-    Note over M,T: 1) Tool definitions provided
-
-    U->>M: "Explain IP cost drivers 2023→2024"
-    M->>T: get_trend_data_tool
-    T->>M: data payload
-    Note over M: Plans next step
-
-    M->>T: save_cached_result_tool
-    T->>M: saved_csv reference
-    Note over M: Data saved
-
-    M->>U: Final explanation
-    Note over U,M: Loop ends
+gantt
+    title Analysis Iteration Phases
+    dateFormat X
+    axisFormat %s
+    section Iteration 1
+    EXPLORATION Phase : 1, 2
+    section Iteration 2
+    EXPLORATION Phase : 2, 3
+    section Iteration 3
+    EXPLORATION Phase : 3, 4
+    section Iteration 4
+    EXPLORATION Phase : 4, 5
+    section Iteration 5
+    EXPLORATION Phase : 5, 6
+    section Iteration 6
+    EXPLORATION Phase : 6, 7
+    section Iteration 7
+    PRE_FINAL Phase : 7, 8
+    section Iteration 8
+    SYNTHESIS Phase : 8, 9
+    section Iteration 9
+    FINAL Phase : 9, 10
+    section Iteration 10
+    FINAL Phase : 10, 11
 ```
-
-
-## Agent loop sequence
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant User
-    participant Runner as run_analysis_sync
-    participant Agent
-    participant Tools
-    participant DB as PostgreSQL (SQLAlchemy)
-    participant OpenAI as OpenAI SDK
-    participant FS as Filesystem
-
-    User->>Runner: start(iterations=N)
-    loop i=1..N
-        Runner->>Agent: make_analysis_prompt [LLM]
-        Agent->>OpenAI: generate hypothesis
-        OpenAI-->>Agent: prompt text
-
-        Agent->>Tools: get_trend_data
-        Tools->>DB: SELECT via SQLAlchemy
-        DB-->>Tools: rows + compiled SQL
-        Tools-->>Agent: results
-
-        Agent->>OpenAI: interpret metrics [LLM]
-        OpenAI-->>Agent: insights / next dims+filters
-
-        Agent->>Tools: save_query_to_csv
-        Tools->>FS: write CSV
-        FS-->>Tools: ok
-
-        Agent->>Runner: continue?
-        Runner-->>Agent: i < N ?
-    end
-
-    Agent->>Runner: synthesize findings
-    Runner->>FS: write report
-```
-

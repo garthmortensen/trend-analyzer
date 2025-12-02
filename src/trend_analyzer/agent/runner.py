@@ -187,10 +187,35 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                 
                 # Assistant message
                 elif it.type == "message_output_item":
-                    msg = it.content if hasattr(it, 'content') else str(it)
+                    msg_text = ""
+                    
+                    # Try to extract text content from the message item structure
+                    # Structure appears to be: it.raw_item.content[].text
+                    if hasattr(it, 'raw_item') and hasattr(it.raw_item, 'content'):
+                        try:
+                            for content_part in it.raw_item.content:
+                                if hasattr(content_part, 'text'):
+                                    msg_text += content_part.text
+                        except Exception:
+                            # If iteration fails, fall back
+                            pass
+                    
+                    # Fallback: check for direct content attribute
+                    if not msg_text and hasattr(it, 'content'):
+                        msg_text = it.content
+                    
+                    # Final fallback: string representation (but truncate if too long to avoid massive logs)
+                    if not msg_text:
+                        raw_str = str(it)
+                        if len(raw_str) > 1000 and "Agent(" in raw_str:
+                            # This is likely the verbose object dump we want to avoid
+                            msg_text = "[Complex Message Object - Could not extract text]"
+                        else:
+                            msg_text = raw_str
+                    
                     # Log to file only (console output suppressed to avoid disrupting progress bars)
-                    debug(f"[{ts}] << ASSISTANT:\n{msg}")
-                    transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg}")
+                    debug(f"[{ts}] << ASSISTANT:\n{msg_text}")
+                    transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg_text}")
             
             info(f"[Iteration {iteration_num}] Completed successfully. Tool calls: {tool_call_count}")
             return result, transcript, tool_call_count, tool_calls_made
@@ -541,11 +566,10 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
         full_report += "1. [Analysis Flow](#analysis-flow)\n"
         full_report += "2. [Report Metadata](#report-metadata)\n"
         full_report += "3. [OpenAI Agents SDK Stack](#openai-agents-sdk-stack)\n"
-        full_report += "4. [System Prompts Per Iteration](#system-prompts-per-iteration)\n"
-        full_report += "5. [Analysis Transcript](#analysis-transcript)\n"
+        full_report += "4. [Analysis Transcript](#analysis-transcript)\n"
         for i in range(1, len(all_system_prompts) + 1):
             full_report += f"   - [Iteration {i}](#iteration-{i})\n"
-        full_report += "6. [Final Summary](#final-summary)\n\n"
+        full_report += "5. [Final Summary](#final-summary)\n\n"
         
         full_report += "---\n\n"
         
@@ -625,17 +649,6 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
         full_report += "```\n"
         full_report += sdk_stack_diagram.strip()
         full_report += "\n```\n\n"
-        full_report += "---\n\n"
-        
-        # System prompts section - show what instructions were given each iteration
-        full_report += "## System Prompts Per Iteration\n\n"
-        full_report += "_System prompts provided to the AI agent for each iteration._\n\n"
-        
-        for prompt_info in all_system_prompts:
-            full_report += f"### Iteration {prompt_info['iteration']} - {prompt_info['phase'].upper()} Phase\n\n"
-            full_report += prompt_info['prompt']
-            full_report += "\n\n"
-        
         full_report += "---\n\n"
         
         # Analysis transcript - organize by iteration

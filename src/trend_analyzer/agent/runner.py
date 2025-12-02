@@ -8,6 +8,8 @@
 
 import json
 import os
+import asyncio
+import openai
 from datetime import datetime
 
 from agents import Agent, Runner, RunConfig
@@ -79,128 +81,140 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
         Tuple of (result, transcript, tool_call_count, tool_calls_made)
     """
     
-    transcript = []
-    tool_call_count = 0
-    tool_calls_made = []  # Track tool calls for loop detection
-    
     info(f"[Iteration {iteration_num}] Starting agent execution with max_turns={max_turns}")
     debug(f"[Iteration {iteration_num}] User message length: {len(user_msg)} chars")
     
-    result = Runner.run_streamed(
-        agent,
-        input=user_msg,
-        max_turns=max_turns,
-        run_config=RunConfig(tracing_disabled=True),
-    )
-    
-    try:
-        async for ev in result.stream_events():
-            if ev.type != "run_item_stream_event":
-                continue
-            
-            it = ev.item
-            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # Model reasoning (PLAN/REFLECT)
-            if it.type == "reasoning_item":
-                thought = "\n".join(
-                    s.text for s in it.raw_item.summary
-                    if s.type == "summary_text"
-                )
-                if thought:
-                    # Log to file only (console output suppressed to avoid disrupting progress bars)
-                    debug(f"[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
-                    transcript.append(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
-            
-            # Tool call
-            elif it.type == "tool_call_item":
-                tool_call_count += 1
-                
-                # Format args in a readable way without escape characters
-                args_raw = it.raw_item.arguments
-                
-                # Handle case where arguments might be a string or dict
-                if isinstance(args_raw, str):
-                    try:
-                        args_dict = json.loads(args_raw)
-                    except Exception:
-                        args_dict = {"raw": args_raw}
-                else:
-                    args_dict = args_raw
-                
-                # Store tool call signature for loop detection
-                tool_signature = {
-                    "name": it.raw_item.name,
-                    "args": args_dict
-                }
-                tool_calls_made.append(tool_signature)
-                
-                # Format as line-separated key-value pairs
-                formatted_args = []
-                for key, value in args_dict.items():
-                    # Handle string values that might be JSON
-                    if isinstance(value, str) and value.startswith('['):
-                        try:
-                            # Try to parse as JSON for better formatting
-                            parsed = json.loads(value)
-                            formatted_args.append(f"  {key}: {json.dumps(parsed, indent=4)}")
-                        except Exception:
-                            formatted_args.append(f"  {key}: {value}")
-                    else:
-                        formatted_args.append(f"  {key}: {value}")
-                
-                args_text = "\n".join(formatted_args)
-                
-                tool_msg = f"-> TOOL #{tool_call_count}: {it.raw_item.name}\nArgs:\n{args_text}"
-                
-                # Log tool call with key parameters for infrastructure tracking
-                # Create concise parameter summary for log
-                param_summary = []
-                for key, value in args_dict.items():
-                    if isinstance(value, str):
-                        # Truncate long strings
-                        val_str = value[:50] + "..." if len(value) > 50 else value
-                    elif isinstance(value, (list, dict)):
-                        val_str = f"{type(value).__name__}[{len(value)}]"
-                    else:
-                        val_str = str(value)
-                    param_summary.append(f"{key}={val_str}")
-                
-                params_log = ", ".join(param_summary) if param_summary else "no args"
-                info(f"Tool call #{tool_call_count}: {it.raw_item.name}({params_log})")
-                
-                # Log to console
-                log_step(f"  [magenta]Tool Call:[/magenta] {it.raw_item.name}({params_log})")
-                
-                transcript.append(f"\n[{ts}] {tool_msg}")
-            
-            # Tool result
-            elif it.type == "tool_call_output_item":
-                result_preview = str(it.output)[:200] if hasattr(it, 'output') else "N/A"
-                debug(f"[{ts}] <- TOOL RESULT (preview): {result_preview}...")
-                
-                # Log to console
-                log_step(f"  [green]Result:[/green] {result_preview}...")
-            
-            # Assistant message
-            elif it.type == "message_output_item":
-                msg = it.content if hasattr(it, 'content') else str(it)
-                # Log to file only (console output suppressed to avoid disrupting progress bars)
-                debug(f"[{ts}] << ASSISTANT:\n{msg}")
-                transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg}")
+    while True:
+        transcript = []
+        tool_call_count = 0
+        tool_calls_made = []  # Track tool calls for loop detection
         
-        info(f"[Iteration {iteration_num}] Completed successfully. Tool calls: {tool_call_count}")
-    
-    except MaxTurnsExceeded:
-        # Can happen if agent tries to do too many things in one iteration
-        # This is usually fine - agent has made progress before hitting limit
-        info(f"[Iteration {iteration_num}] Turn limit reached. Tool calls made: {tool_call_count}")
-    
-    except Exception as e:
-        error(f"[Iteration {iteration_num}] Unexpected error during streaming: {e}")
-        raise
-    
-    return result, transcript, tool_call_count, tool_calls_made
+        try:
+            result = Runner.run_streamed(
+                agent,
+                input=user_msg,
+                max_turns=max_turns,
+                run_config=RunConfig(tracing_disabled=True),
+            )
+            
+            async for ev in result.stream_events():
+                if ev.type != "run_item_stream_event":
+                    continue
+                
+                it = ev.item
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Model reasoning (PLAN/REFLECT)
+                if it.type == "reasoning_item":
+                    thought = "\n".join(
+                        s.text for s in it.raw_item.summary
+                        if s.type == "summary_text"
+                    )
+                    if thought:
+                        # Log to file only (console output suppressed to avoid disrupting progress bars)
+                        debug(f"[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
+                        transcript.append(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
+                
+                # Tool call
+                elif it.type == "tool_call_item":
+                    tool_call_count += 1
+                    
+                    # Format args in a readable way without escape characters
+                    args_raw = it.raw_item.arguments
+                    
+                    # Handle case where arguments might be a string or dict
+                    if isinstance(args_raw, str):
+                        try:
+                            args_dict = json.loads(args_raw)
+                        except Exception:
+                            args_dict = {"raw": args_raw}
+                    else:
+                        args_dict = args_raw
+                    
+                    # Store tool call signature for loop detection
+                    tool_signature = {
+                        "name": it.raw_item.name,
+                        "args": args_dict
+                    }
+                    tool_calls_made.append(tool_signature)
+                    
+                    # Format as line-separated key-value pairs
+                    formatted_args = []
+                    for key, value in args_dict.items():
+                        # Handle string values that might be JSON
+                        if isinstance(value, str) and value.startswith('['):
+                            try:
+                                # Try to parse as JSON for better formatting
+                                parsed = json.loads(value)
+                                formatted_args.append(f"  {key}: {json.dumps(parsed, indent=4)}")
+                            except Exception:
+                                formatted_args.append(f"  {key}: {value}")
+                        else:
+                            formatted_args.append(f"  {key}: {value}")
+                    
+                    args_text = "\n".join(formatted_args)
+                    
+                    tool_msg = f"-> TOOL #{tool_call_count}: {it.raw_item.name}\nArgs:\n{args_text}"
+                    
+                    # Log tool call with key parameters for infrastructure tracking
+                    # Create concise parameter summary for log
+                    param_summary = []
+                    for key, value in args_dict.items():
+                        if isinstance(value, str):
+                            # Truncate long strings
+                            val_str = value[:50] + "..." if len(value) > 50 else value
+                        elif isinstance(value, (list, dict)):
+                            val_str = f"{type(value).__name__}[{len(value)}]"
+                        else:
+                            val_str = str(value)
+                        param_summary.append(f"{key}={val_str}")
+                    
+                    params_log = ", ".join(param_summary) if param_summary else "no args"
+                    info(f"Tool call #{tool_call_count}: {it.raw_item.name}({params_log})")
+                    
+                    # Log to console
+                    log_step(f"  [magenta]Tool Call:[/magenta] {it.raw_item.name}({params_log})")
+                    
+                    transcript.append(f"\n[{ts}] {tool_msg}")
+                
+                # Tool result
+                elif it.type == "tool_call_output_item":
+                    result_preview = str(it.output)[:200] if hasattr(it, 'output') else "N/A"
+                    debug(f"[{ts}] <- TOOL RESULT (preview): {result_preview}...")
+                    
+                    # Log to console
+                    log_step(f"  [green]Result:[/green] {result_preview}...")
+                
+                # Assistant message
+                elif it.type == "message_output_item":
+                    msg = it.content if hasattr(it, 'content') else str(it)
+                    # Log to file only (console output suppressed to avoid disrupting progress bars)
+                    debug(f"[{ts}] << ASSISTANT:\n{msg}")
+                    transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg}")
+            
+            info(f"[Iteration {iteration_num}] Completed successfully. Tool calls: {tool_call_count}")
+            return result, transcript, tool_call_count, tool_calls_made
+        
+        except openai.APIError as e:
+            if "Rate limit reached" in str(e):
+                warning_msg = f"Rate limit reached. Pausing for 30 seconds before retrying... (Error: {e})"
+                info(warning_msg)
+                log_step(f"[bold yellow]{warning_msg}[/bold yellow]")
+                await asyncio.sleep(15)
+                continue
+            else:
+                error(f"[Iteration {iteration_num}] OpenAI API Error: {e}")
+                raise
+
+        except MaxTurnsExceeded:
+            # Can happen if agent tries to do too many things in one iteration
+            # This is usually fine - agent has made progress before hitting limit
+            info(f"[Iteration {iteration_num}] Turn limit reached. Tool calls made: {tool_call_count}")
+            return result, transcript, tool_call_count, tool_calls_made
+        
+        except Exception as e:
+            error(f"[Iteration {iteration_num}] Unexpected error during streaming: {e}")
+            raise
 
 
 # ───────────────────────────────

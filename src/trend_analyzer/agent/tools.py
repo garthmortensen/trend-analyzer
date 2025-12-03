@@ -9,6 +9,7 @@
 import json
 import csv
 import os
+import hashlib
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +23,54 @@ from ..config import config
 def timestamp():
     """Get current timestamp in log format."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def save_tool_manifest(
+    group_by_list: list,
+    filters_list: list,
+    sql: str,
+    rows: list,
+    tool_name: str
+):
+    """Save a JSON manifest of the tool execution context."""
+    try:
+        run_dir = os.environ.get("TREND_ANALYZER_RUN_DIR")
+        iteration = os.environ.get("TREND_ANALYZER_CURRENT_ITERATION")
+        
+        if not (run_dir and iteration):
+            return  # Not running in agent context
+            
+        # Calculate sample hash (hash of first 5 rows + count)
+        sample_str = f"{len(rows)}:{json.dumps(rows[:5], sort_keys=True, default=str)}"
+        sample_hash = hashlib.md5(sample_str.encode()).hexdigest()
+        
+        manifest = {
+            "iteration": int(iteration),
+            "timestamp": datetime.now().isoformat(),
+            "tool": tool_name,
+            "filters": filters_list,
+            "group_by": group_by_list,
+            "sql": sql,
+            "row_count": len(rows),
+            "sample_hash": sample_hash
+        }
+        
+        # Save to file
+        # output/run_id/manifests/iteration_N_tool_timestamp.json
+        manifest_dir = os.path.join(run_dir, "manifests")
+        os.makedirs(manifest_dir, exist_ok=True)
+        
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"iteration_{iteration}_{tool_name}_{ts}.json"
+        filepath = os.path.join(manifest_dir, filename)
+        
+        with open(filepath, "w") as f:
+            json.dump(manifest, f, indent=2)
+            
+        debug(f"Saved tool manifest: {filename}")
+        
+    except Exception as e:
+        error(f"Failed to save tool manifest: {e}")
 
 
 # ───────────────────────────────
@@ -79,6 +128,16 @@ async def get_trend_data_tool(
         
         # Parse the data
         rows = json.loads(result["data"])
+        
+        # Save manifest
+        save_tool_manifest(
+            group_by_list, 
+            filters_list, 
+            result.get("sql", ""), 
+            rows, 
+            "get_trend_data"
+        )
+        
         # Log summary only (SQL is verbose, goes to report via tool response)
         debug(f"Query returned {len(rows)} rows")
         
@@ -120,6 +179,15 @@ async def list_available_dimensions_tool() -> str:
         dims = json.loads(result["data"])
         debug(f"Retrieved {len(dims)} available dimensions")
         
+        # Save manifest (metadata only)
+        save_tool_manifest(
+            [], 
+            [], 
+            "REFLECTION: list_available_dimensions", 
+            list(dims.keys()), 
+            "list_available_dimensions"
+        )
+        
         response = "AVAILABLE DIMENSIONS:\n\n"
         for dim_name, dim_type in sorted(dims.items()):
             response += f"• {dim_name}: {dim_type}\n"
@@ -149,6 +217,15 @@ async def get_dimension_values_tool(dimension_name: str) -> str:
         
         values = json.loads(result["data"])
         debug(f"Retrieved {len(values)} distinct values for '{dimension_name}'")
+        
+        # Save manifest
+        save_tool_manifest(
+            [], 
+            [{"dimension_name": dimension_name, "operator": "DISTINCT", "value": "ALL"}], 
+            f"SELECT DISTINCT {dimension_name} FROM descriptor", 
+            values, 
+            "get_dimension_values"
+        )
         
         response = f"DIMENSION VALUES for '{dimension_name}':\n\n"
         
@@ -210,6 +287,16 @@ async def save_query_to_csv_tool(
         
         # Parse the data
         rows = json.loads(result["data"])
+        
+        # Save manifest
+        save_tool_manifest(
+            group_by_list, 
+            filters_list, 
+            result.get("sql", ""), 
+            rows, 
+            "save_query_to_csv"
+        )
+        
         debug(f"CSV export query returned {len(rows)} rows")
         
         if not rows:
@@ -225,7 +312,6 @@ async def save_query_to_csv_tool(
             output_dir.mkdir(exist_ok=True)
         
         # Generate descriptive filename from query parameters
-        import hashlib
         
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         

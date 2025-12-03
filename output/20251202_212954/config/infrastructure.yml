@@ -1,0 +1,40 @@
+#!/usr/bin/env yaml
+#
+# === FILE META OPENING ===
+# file: ./trend-analyzer/config/infrastructure.yml
+# role: configuration
+# desc: technical infrastructure configuration - database, output, AI settings
+# === FILE META CLOSING ===
+
+# Infrastructure configuration for Trend Analyzer
+# Contains technical settings for database, output, and services
+
+# Database configuration
+database:
+  type: "postgresql"              # postgresql, bigquery
+  host: "localhost"
+  port: 5432
+  database: "aca_health"
+  username: "etl"
+  password: "etl"
+  schema: "dw"
+  # Optional server-side timeout in seconds applied per statement
+  # example: 30 for 30s
+  statement_timeout_seconds: 30
+
+# Output configuration
+output:
+  dir: "./output"
+  format: "json"              # google_doc, json, csv
+  filename: "trend_analysis_report"
+  include_charts: true
+
+# Data testing configuration (used when mode = "test-data")
+test_data:
+  connection_tests: ["postgresql"]
+  run_sample_queries: true
+
+# AI configuration
+ai:
+  model: "gpt-4"
+  temperature: 0.3  # Creativity level

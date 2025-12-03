@@ -89,6 +89,9 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
         tool_call_count = 0
         tool_calls_made = []  # Track tool calls for loop detection
         
+        # Structured trace for manifest
+        trace_steps = []
+        
         try:
             result = Runner.run_streamed(
                 agent,
@@ -114,6 +117,12 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                         # Log to file only (console output suppressed to avoid disrupting progress bars)
                         debug(f"[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
                         transcript.append(f"\n[{ts}] >> THOUGHT (Iteration {iteration_num}):\n{thought}")
+                        
+                        trace_steps.append({
+                            "type": "reasoning",
+                            "content": thought,
+                            "timestamp": ts
+                        })
                 
                 # Tool call
                 elif it.type == "tool_call_item":
@@ -176,6 +185,13 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                     log_step(f"  [magenta]Tool Call:[/magenta] {it.raw_item.name}({params_log})")
                     
                     transcript.append(f"\n[{ts}] {tool_msg}")
+                    
+                    trace_steps.append({
+                        "type": "tool_call",
+                        "tool": it.raw_item.name,
+                        "args": args_dict,
+                        "timestamp": ts
+                    })
                 
                 # Tool result
                 elif it.type == "tool_call_output_item":
@@ -184,6 +200,12 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                     
                     # Log to console
                     log_step(f"  [green]Result:[/green] {result_preview}...")
+                    
+                    trace_steps.append({
+                        "type": "tool_result",
+                        "output": str(it.output) if hasattr(it, 'output') else "",
+                        "timestamp": ts
+                    })
                 
                 # Assistant message
                 elif it.type == "message_output_item":
@@ -216,9 +238,15 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
                     # Log to file only (console output suppressed to avoid disrupting progress bars)
                     debug(f"[{ts}] << ASSISTANT:\n{msg_text}")
                     transcript.append(f"\n[{ts}] << ASSISTANT:\n{msg_text}")
+                    
+                    trace_steps.append({
+                        "type": "assistant_message",
+                        "content": msg_text,
+                        "timestamp": ts
+                    })
             
             info(f"[Iteration {iteration_num}] Completed successfully. Tool calls: {tool_call_count}")
-            return result, transcript, tool_call_count, tool_calls_made
+            return result, transcript, tool_call_count, tool_calls_made, trace_steps
         
         except openai.APIError as e:
             if "Rate limit reached" in str(e):
@@ -235,7 +263,7 @@ async def run_once_streamed(agent: Agent, user_msg: str, iteration_num: int = 1,
             # Can happen if agent tries to do too many things in one iteration
             # This is usually fine - agent has made progress before hitting limit
             info(f"[Iteration {iteration_num}] Turn limit reached. Tool calls made: {tool_call_count}")
-            return result, transcript, tool_call_count, tool_calls_made
+            return result, transcript, tool_call_count, tool_calls_made, trace_steps
         
         except Exception as e:
             error(f"[Iteration {iteration_num}] Unexpected error during streaming: {e}")
@@ -405,6 +433,15 @@ async def run_analysis(iterations: int = 10) -> str:
             phase = get_iteration_phase(current_iter, iterations)
             system_prompt = make_analysis_prompt(iterations, current_iteration=current_iter)
             
+            # Set environment variables for tools to track iteration context
+            os.environ["TREND_ANALYZER_CURRENT_ITERATION"] = str(current_iter)
+            
+            # Save prompt to file for tools to access (avoiding env var size limits)
+            prompt_file = os.path.join(run_dir, "current_prompt.txt")
+            with open(prompt_file, "w") as f:
+                f.write(system_prompt)
+            os.environ["TREND_ANALYZER_PROMPT_FILE"] = prompt_file
+            
             progress.update(analysis_task, description=f"[green]Iteration {current_iter}/{iterations} - {phase.upper()}")
             
             # Log iteration header with phase
@@ -469,12 +506,49 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
             
             # Run one iteration (max_turns=5 allows agent to think AND call tools in same iteration)
             with console.status(f"[bold green]Iteration {current_iter} ({phase}) - Processing turns...", spinner="dots"):
-                result, transcript, tool_calls, tool_calls_made = await run_once_streamed(
+                result, transcript, tool_calls, tool_calls_made, trace_steps = await run_once_streamed(
                     agent,
                     user_msg=user_msg,
                     iteration_num=current_iter,
                     max_turns=5
                 )
+            
+            # Save comprehensive iteration manifest
+            try:
+                # Look for tool manifests generated during this iteration
+                manifest_dir = os.path.join(run_dir, "manifests")
+                tool_manifests = []
+                if os.path.exists(manifest_dir):
+                    for f in os.listdir(manifest_dir):
+                        if f.startswith(f"iteration_{current_iter}_"):
+                            try:
+                                with open(os.path.join(manifest_dir, f), "r") as mf:
+                                    tool_manifests.append(json.load(mf))
+                            except Exception:
+                                pass
+                
+                # Create master manifest for this iteration
+                iteration_manifest = {
+                    "iteration": current_iter,
+                    "phase": phase,
+                    "timestamp": datetime.now().isoformat(),
+                    "system_prompt": system_prompt,
+                    "user_message": user_msg,
+                    "trace": trace_steps,
+                    "tool_executions": tool_manifests,
+                    "final_response": result.final_output if result else None
+                }
+                
+                # Save to file
+                manifest_path = os.path.join(manifest_dir, f"iteration_{current_iter}_manifest.json")
+                os.makedirs(manifest_dir, exist_ok=True)
+                with open(manifest_path, "w") as f:
+                    json.dump(iteration_manifest, f, indent=2)
+                    
+                debug(f"Saved iteration manifest: {manifest_path}")
+                
+            except Exception as e:
+                error(f"Failed to save iteration manifest: {e}")
             
             all_transcripts.extend(transcript)
             total_tool_calls += tool_calls

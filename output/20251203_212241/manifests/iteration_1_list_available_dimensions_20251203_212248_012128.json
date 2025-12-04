@@ -1,0 +1,10 @@
+{
+  "iteration": 1,
+  "timestamp": "2025-12-03T21:22:48.011874",
+  "tool": "list_available_dimensions",
+  "filters": [],
+  "group_by": [],
+  "sql": "REFLECTION: list_available_dimensions",
+  "row_count": 54,
+  "sample_hash": "5b21e61a05139c60b530d5700e772317"
+}

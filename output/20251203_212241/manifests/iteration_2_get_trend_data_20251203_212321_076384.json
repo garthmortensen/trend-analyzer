@@ -1,0 +1,14 @@
+{
+  "iteration": 2,
+  "timestamp": "2025-12-03T21:23:21.076224",
+  "tool": "get_trend_data",
+  "filters": [],
+  "group_by": [
+    "year",
+    "channel",
+    "ccsr_system_description"
+  ],
+  "sql": "SELECT dw.agg_trend_descriptor.year, dw.agg_trend_descriptor.hios_id, dw.agg_trend_descriptor.state, dw.agg_trend_descriptor.plan_network_access_type, dw.agg_trend_descriptor.plan_metal, dw.agg_trend_descriptor.age_group, dw.agg_trend_descriptor.gender, dw.agg_trend_descriptor.region, dw.agg_trend_descriptor.geographic_reporting, dw.agg_trend_descriptor.clinical_segment, dw.agg_trend_descriptor.general_agency_name, dw.agg_trend_descriptor.broker_name, dw.agg_trend_descriptor.sa_contracting_entity_name, dw.agg_trend_descriptor.enrollment_length_continuous, dw.agg_trend_descriptor.new_member_in_period, dw.agg_trend_descriptor.member_called_oscar, dw.agg_trend_descriptor.member_used_app, dw.agg_trend_descriptor.member_had_web_login, dw.agg_trend_descriptor.member_visited_new_provider_ind, dw.agg_trend_descriptor.high_cost_member, dw.agg_trend_descriptor.mutually_exclusive_hcc_condition, dw.agg_trend_descriptor.wisconsin_area_deprivation_index, dw.agg_trend_descriptor.claim_type, dw.agg_trend_descriptor.major_service_category, dw.agg_trend_descriptor.provider_specialty, dw.agg_trend_descriptor.detailed_service_category, dw.agg_trend_descriptor.ms_drg, dw.agg_trend_descriptor.ms_drg_mdc, dw.agg_trend_descriptor.cpt, dw.agg_trend_descriptor.cpt_consumer_description, dw.agg_trend_descriptor.procedure_level_1, dw.agg_trend_descriptor.procedure_level_2, dw.agg_trend_descriptor.procedure_level_3, dw.agg_trend_descriptor.procedure_level_4, dw.agg_trend_descriptor.procedure_level_5, dw.agg_trend_descriptor.channel, dw.agg_trend_descriptor.drug_name, dw.agg_trend_descriptor.drug_class, dw.agg_trend_descriptor.drug_subclass, dw.agg_trend_descriptor.drug_name_full, dw.agg_trend_descriptor.is_out_of_network, dw.agg_trend_descriptor.best_contracting_entity_name, dw.agg_trend_descriptor.provider_group_name, dw.agg_trend_descriptor.ccsr_system_description, dw.agg_trend_descriptor.ccsr_description, dw.agg_trend_descriptor.charges, dw.agg_trend_descriptor.denied_charges, dw.agg_trend_descriptor.allowed, dw.agg_trend_descriptor.count_of_denied_claims, dw.agg_trend_descriptor.count_of_claims, dw.agg_trend_descriptor.out_of_network_allowed, dw.agg_trend_descriptor.utilization, dw.agg_trend_descriptor.units_days, dw.agg_trend_descriptor.avg_days_service_to_paid \nFROM dw.agg_trend_descriptor \n LIMIT 100",
+  "row_count": 100,
+  "sample_hash": "be07962c355fa13332a8b2b2e34f0fe0"
+}

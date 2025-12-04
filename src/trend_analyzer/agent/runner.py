@@ -472,8 +472,19 @@ async def run_analysis(iterations: int = 10) -> str:
             if current_iter == 1:
                 user_msg = f"""Begin the trend analysis.
 
-Start by understanding what dimensions are available, then systematically drill down into key drivers.
-Follow the PLAN-ACTION-REFLECT pattern for each analytical step.
+CRITICAL INSTRUCTION: You have function calling capability. When you need data:
+1. Write your PLAN (what you want to discover)
+2. ACTUALLY CALL THE TOOLS using function calls - do NOT write JSON code blocks or examples
+3. Wait for results, then write your REFLECT section
+
+Example of what to do in ACTION section:
+✅ CORRECT: list_available_dimensions_tool()
+✅ CORRECT: get_trend_data_tool(group_by_dimensions="year,channel", filters='[{{"dimension_name":"channel","operator":"=","value":"IP"}}]')
+
+❌ WRONG: Writing JSON snippets or code blocks - these will NOT execute
+
+Start by calling list_available_dimensions_tool() to understand what dimensions are available.
+Then systematically drill down into key drivers by CALLING the tools.
 
 CSV EXPORT REQUIREMENT: You MUST save diverse query results to CSV files throughout your analysis:
 - Target: 3-5 different CSV files by the end of exploration

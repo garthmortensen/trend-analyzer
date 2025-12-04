@@ -59,41 +59,22 @@ The AI agent has access to these tools:
 
 ## Common Analysis Patterns
 
+**IMPORTANT FOR AI AGENTS**: These patterns show the CONCEPTUAL analysis flow. When implementing, you must use ACTUAL FUNCTION CALLS, not write these as code blocks. The patterns below are for understanding the analytical sequence only.
+
 ### Pattern 1: Hospital Readmission Deep Dive
-```python
-# Step 1: Overall IP trend
-filters=[{"dimension_name": "channel", "operator": "=", "value": "IP"}]
-
-# Step 2: By condition
-group_by=["ccsr_description"]
-
-# Step 3: Top readmission conditions
-# Look for conditions with high utilization_pkpy in 2024 vs 2023
-
-# Step 4: Provider-level
-group_by=["provider_group_name", "ccsr_description"]
-filters=[{"dimension_name": "ccsr_description", "operator": "IN", "value": ["CHF", "COPD"]}]
-
-# Step 5: Calculate readmission impact
-# Compare allowed_pmpm for high-readmission providers vs. benchmark
-```
+**Conceptual Flow** (translate to actual tool calls):
+1. Get overall IP trend → `get_trend_data_tool(group_by_dimensions="year,channel", filters='[{"dimension_name":"channel","operator":"=","value":"IP"}]')`
+2. Break down by condition → `get_trend_data_tool(group_by_dimensions="year,ccsr_description", filters='[{"dimension_name":"channel","operator":"=","value":"IP"}]')`
+3. Identify top readmission conditions (look for high utilization_pkpy in 2024 vs 2023)
+4. Drill into providers → `get_trend_data_tool(group_by_dimensions="year,provider_group_name,ccsr_description", filters='[{"dimension_name":"ccsr_description","operator":"IN","value":["CHF","COPD"]}]')`
+5. Calculate readmission impact by comparing allowed_pmpm across providers
 
 ### Pattern 2: Cost Driver Decomposition
-```python
-# Step 1: Overall trend
-# No filters, just get total allowed_pmpm
+**Conceptual Flow** (translate to actual tool calls):
+1. Get overall trend → `get_trend_data_tool(group_by_dimensions="year")`
+2. Break down by service type → `get_trend_data_tool(group_by_dimensions="year,channel")`
+3. Drill into largest driver (e.g., IP) → `get_trend_data_tool(group_by_dimensions="year,ccsr_system_description", filters='[{"dimension_name":"channel","operator":"=","value":"IP"}]')`
+4. Focus on specific condition → `get_trend_data_tool(group_by_dimensions="year,ccsr_description", filters='[{"dimension_name":"ccsr_system_description","operator":"=","value":"Cardiovascular"}]')`
+5. Examine provider impact → `get_trend_data_tool(group_by_dimensions="year,provider_group_name", filters='[...]')`
 
-# Step 2: By service type
-group_by=["channel"]  # IP, OP, Pharmacy
-
-# Step 3: Within largest driver (e.g., IP)
-filters=[{"dimension_name": "channel", "operator": "=", "value": "IP"}]
-group_by=["ccsr_system_description"]
-
-# Step 4: Specific condition
-filters=[{"dimension_name": "ccsr_system_description", "operator": "=", "value": "Cardiovascular"}]
-group_by=["ccsr_description"]
-
-# Step 5: Provider impact
-group_by=["provider_group_name"]
-```
+**Remember**: These are analysis sequences. At each step, INVOKE the actual tool function directly.

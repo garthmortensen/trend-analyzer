@@ -425,6 +425,8 @@ async def run_analysis(iterations: int = 10) -> str:
     progress.start()
     analysis_task = progress.add_task("[green]Analysis Progress", total=iterations)
     
+    correction_instruction = ""  # Track corrective instructions between iterations
+    
     try:
         for current_iter in range(1, iterations + 1):
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -497,6 +499,11 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
                 # Continue conversation - provide context from previous iteration
                 user_msg_parts = [f"Continue your analysis. This is iteration {current_iter} of {iterations}."]
                 
+                # Add correction instruction if any
+                if correction_instruction:
+                    user_msg_parts.append(f"\n\n{correction_instruction}")
+                    correction_instruction = ""  # Reset after using
+                
                 # Add previous findings
                 if conversation_history:
                     prev_summary = conversation_history[-1]
@@ -523,6 +530,26 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
                     iteration_num=current_iter,
                     max_turns=5
                 )
+            
+            # --- VALIDATION LOGIC ---
+            # 1. Enforce tool calls in exploration phase
+            if phase == "exploration" and tool_calls == 0:
+                warning = "CRITICAL WARNING: You made NO tool calls in the previous iteration. You are in the EXPLORATION phase. You MUST call tools to gather data. Do not hallucinate results."
+                info(f"Validation failed: {warning}")
+                correction_instruction = warning
+            
+            # 2. Enforce minimum CSVs before final phase
+            if phase == "final" or current_iter >= iterations - 2:
+                # Count CSVs
+                csv_count = len(list(Path(csv_output_dir).glob("*.csv")))
+                if csv_count < 3:
+                    warning = f"CRITICAL WARNING: You have only saved {csv_count} CSV files. You are required to save at least 3 DIFFERENT CSV files before concluding. Continue exploration and save more queries."
+                    info(f"Validation failed: {warning}")
+                    if correction_instruction:
+                        correction_instruction += f"\n\n{warning}"
+                    else:
+                        correction_instruction = warning
+            # ------------------------
             
             # Save comprehensive iteration manifest
             try:
@@ -616,10 +643,20 @@ Remember: maximum 3 tool calls per iteration, then reflect and move to next iter
                     "## COMPANY-WIDE SUMMARY & KEY DRIVERS FINAL DOCUMENT"
                 ]
                 if any(marker in assistant_msg for marker in completion_markers):
-                    ts_complete = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    info(f"\n[{ts_complete}] Completion marker detected - analysis finished early")
-                    final_result = result
-                    break
+                    # Enforce minimum exploration before allowing early completion
+                    if phase == "exploration":
+                        warning = "PREMATURE CONCLUSION REJECTED: You are attempting to conclude the analysis during the EXPLORATION phase. You must continue investigating. Do not summarize yet."
+                        info(f"Validation failed: {warning}")
+                        if correction_instruction:
+                            correction_instruction += f"\n\n{warning}"
+                        else:
+                            correction_instruction = warning
+                        # Do NOT break - force continuation
+                    else:
+                        ts_complete = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        info(f"\n[{ts_complete}] Completion marker detected - analysis finished early")
+                        final_result = result
+                        break
             
             final_result = result
         

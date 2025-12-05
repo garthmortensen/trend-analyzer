@@ -325,6 +325,20 @@ async def save_query_to_csv_tool(
         query_str = f"{group_by_dimensions}|{filters}|{top_n}"
         query_hash = hashlib.md5(query_str.encode()).hexdigest()[:6]
         
+        # Check for duplicates in the output directory
+        if csv_dir:
+            # Check if any file in the directory contains this hash
+            # Pattern: timestamp_dimensions_hash.csv
+            existing_files = list(Path(csv_dir).glob(f"*_{query_hash}.csv"))
+            if existing_files:
+                existing_file = existing_files[0].name
+                info(f"Duplicate CSV rejected: {existing_file} matches hash {query_hash}")
+                return json.dumps({
+                    "success": False,
+                    "error": f"DUPLICATE QUERY: A CSV with these exact parameters already exists ({existing_file}). You must vary your query parameters (dimensions, filters) to save a new file.",
+                    "hint": "Try drilling down deeper or changing the grouping dimensions."
+                })
+
         # Build filename: timestamp_dimensions_hash.csv
         filename = f"{ts}_{dim_part}_{query_hash}.csv"
         filepath = output_dir / filename

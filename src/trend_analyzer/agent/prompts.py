@@ -52,7 +52,7 @@ save_query_to_csv_tool:
   
 Important Tool Call Guidelines:
 - Maximum 3 tool calls per iteration
-- REQUIRED: Every 2-3 iterations, save at least one interesting query result to CSV
+- REQUIRED: Every exlporation iterations, save at least one interesting query result to CSV
 - Each CSV export MUST be DIFFERENT - vary dimensions, filters, or drill-down level
 - DO NOT save the same query multiple times - each CSV should provide unique analytical value
 - Use save_query_to_csv_tool to preserve diverse analytical perspectives

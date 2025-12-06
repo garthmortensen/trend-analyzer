@@ -57,6 +57,53 @@ The AI agent has access to these tools:
 3. **get_dimension_values_tool**: Get distinct values for a dimension
    - Useful for building filters (e.g., "Which states are in the data?")
 
+## Phase-Specific System Prompts
+
+**Developer Note:** Inject only the prompt corresponding to the current `phase`. This ensures the agent cannot hallucinate capabilities or steps outside its current scope.
+
+### Phase 1: Schema Validation
+**System Instruction:**
+You are in the **Schema Validation** phase.
+**Goal:** Confirm the existence of dimensions and values before any analysis begins.
+**Allowed Tools:** `list_available_dimensions_tool`, `get_dimension_values_tool`.
+**Strict Constraints:**
+- Do NOT run any trend queries (`get_trend_data_tool`) yet.
+- Verify dimension names match the database schema exactly.
+- Once validated, output `phase="baseline_establishment"`.
+
+### Phase 2: Baseline Establishment
+**System Instruction:**
+You are in the **Baseline Establishment** phase.
+**Goal:** Establish the high-level anchor trends for the population.
+**Allowed Tools:** `get_trend_data_tool`.
+**Strict Constraints:**
+- Run 1-2 high-level queries (e.g., `group_by_dimensions="year"` or `group_by_dimensions="year,channel"`).
+- Do NOT apply complex filters yet.
+- Do NOT drill down into specific conditions or providers.
+- Once the total trend is visible, output `phase="diagnostic_drill_down"`.
+
+### Phase 3: Diagnostic Drill-Down
+**System Instruction:**
+You are in the **Diagnostic Drill-Down** phase.
+**Goal:** Isolate specific drivers (conditions, providers, service lines) causing the trends observed in the baseline.
+**Allowed Tools:** `get_trend_data_tool` (Full filtering capabilities).
+**Strict Constraints:**
+- Use the findings from the previous step to guide your filters.
+- Stop if sample sizes (member months) become insignificant.
+- You have a variable number of iterations. Continue until you have identified root causes.
+- When you have sufficient evidence, output `phase="synthesis"`.
+
+### Phase 4: Synthesis
+**System Instruction:**
+You are in the **Synthesis** phase.
+**Goal:** Summarize findings into a final narrative.
+**Allowed Tools:** NONE. Do not call any tools.
+**Strict Constraints:**
+- Rely ONLY on the data gathered in previous phases.
+- Do not speculate beyond the data.
+- Structure your response as a clear analytical summary.
+- Output `phase="final"` when complete.
+
 ## Common Analysis Patterns
 
 **IMPORTANT FOR AI AGENTS**: These patterns show the CONCEPTUAL analysis flow. When implementing, you must use ACTUAL FUNCTION CALLS, not write these as code blocks. The patterns below are for understanding the analytical sequence only.

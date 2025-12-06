@@ -21,7 +21,7 @@ cube_building:
 run_analysis: true
 analyze:
   # AI Agent Configuration
-  max_iterations: 7         # Maximum number of AI agent analysis iterations
+  max_iterations: 10         # Maximum number of AI agent analysis iterations
   openai_model: "gpt-4o"  # gpt-4o-mini, gpt-4o, o1-preview, gpt-4o-mini
   openai_timeout_seconds: 30   # Timeout for OpenAI API calls
   
@@ -32,7 +32,7 @@ analyze:
   filters:
     - dimension_name: "state"
       operator: "IN"
-      value: ["CA", "NY", "MN"]
+      value: ["MN"]
     - dimension_name: "year"
       operator: ">="
       value: 2023

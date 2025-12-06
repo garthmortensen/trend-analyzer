@@ -24,6 +24,7 @@ from .tools import (
     list_available_dimensions_tool,
     get_dimension_values_tool,
     save_query_to_csv_tool,
+    generate_plot_tool,
 )
 from .prompts import make_analysis_prompt, get_iteration_phase
 
@@ -54,7 +55,8 @@ async def create_analysis_agent(model: str, system_prompt: str) -> Agent:
             get_trend_data_tool,
             list_available_dimensions_tool,
             get_dimension_values_tool,
-            save_query_to_csv_tool
+            save_query_to_csv_tool,
+            generate_plot_tool
         ]
     )
     

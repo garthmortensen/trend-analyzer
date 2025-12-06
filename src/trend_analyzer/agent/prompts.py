@@ -165,82 +165,61 @@ Never finish early. Use your full iteration budget for exploration.
 
 def get_iteration_phase(current: int, total: int) -> str:
     """Determine which phase of analysis based on iteration progress."""
-    remaining = total - current
-    
-    if remaining > 3:
-        return "exploration"
-    elif remaining == 3:
-        return "pre_final"
-    elif remaining == 2:
+    if current == 1:
+        return "schema_validation"
+    elif current == 2:
+        return "baseline_establishment"
+    elif current == total:
         return "synthesis"
-    else:  # remaining <= 1
-        return "final"
+    else:
+        return "diagnostic_drill_down"
+
+
+def get_phase_prompt_from_md(phase: str) -> str:
+    """Extract the specific system prompt for the given phase from AGENTS.md."""
+    agents_md_path = Path(__file__).parent.parent.parent.parent / "AGENTS.md"
+    
+    if not agents_md_path.exists():
+        return f"Error: AGENTS.md not found. Phase: {phase}"
+        
+    content = agents_md_path.read_text()
+    
+    # Map internal phase names to AGENTS.md headers
+    phase_headers = {
+        "schema_validation": "### Phase 1: Schema Validation",
+        "baseline_establishment": "### Phase 2: Baseline Establishment",
+        "diagnostic_drill_down": "### Phase 3: Diagnostic Drill-Down",
+        "synthesis": "### Phase 4: Synthesis"
+    }
+    
+    header = phase_headers.get(phase)
+    if not header:
+        return f"Error: Unknown phase {phase}"
+        
+    if header not in content:
+        return f"Error: Header '{header}' not found in AGENTS.md"
+        
+    start_idx = content.index(header)
+    # Find the next header (### Phase) or end of section
+    next_header_idx = content.find("\n### Phase ", start_idx + 1)
+    
+    if next_header_idx == -1:
+        # Check for next major section if no more phases
+        next_header_idx = content.find("\n## ", start_idx + 1)
+        
+    section_content = content[start_idx:next_header_idx] if next_header_idx != -1 else content[start_idx:]
+    return section_content.strip()
 
 
 def get_phase_guidance(phase: str, current: int, total: int) -> str:
     """Get specific guidance for current phase."""
-    remaining = total - current
     
-    if phase == "exploration":
-        return f"""
-CURRENT ITERATION: {current} of {total} (EXPLORATION PHASE - {remaining} iterations remaining)
+    phase_prompt = get_phase_prompt_from_md(phase)
+    
+    return f"""
+CURRENT ITERATION: {current} of {total} (PHASE: {phase})
 
-You are in the EXPLORATION phase. Your task is to:
-- Continue drilling down into drivers you've identified
-- Test new hypotheses about what's causing trends
-- Call tools to gather more data
-- REQUIRED: Save at least one interesting query result to CSV every 2-3 iterations
-
-CSV Export Requirement: You should have at least {current // 3} CSV files saved by now.
-Use save_query_to_csv_tool with the same parameters as successful get_trend_data_tool calls.
-
-DO NOT attempt to summarize or conclude. You MUST output PLAN + tool calls for further investigation.
-If you think you've run out of avenues, that's a sign you haven't drilled deep enough - keep going!
-Go back to top-level and drill through a different dimension path.
-"""
-    elif phase == "pre_final":
-        return f"""
-CURRENT ITERATION: {current} of {total} (PRE-FINAL - {remaining} iterations remaining before synthesis)
-
-You are approaching the synthesis phase. Use this iteration to:
-- Complete any final critical data gathering
-- Ensure you have saved 3-5 diverse CSV exports supporting your findings
-- Verify you've explored all major cost drivers
-- Do NOT start writing final summary yet - you still have {remaining} iterations for investigation
-"""
-    elif phase == "synthesis":
-        return f"""
-CURRENT ITERATION: {current} of {total} (SYNTHESIS PHASE - {remaining} iterations remaining)
-
-You are now in the SYNTHESIS phase. Begin organizing your findings:
-- Review all the data you've gathered
-- Identify the 3-5 most significant drivers
-- Ensure your CSV exports cover these key findings
-- Make any final tool calls if absolutely essential data is missing
-- Next iteration will be your FINAL summary
-"""
-    else:  # final
-        return f"""
-CURRENT ITERATION: {current} of {total} (FINAL ITERATION)
-
-This is your FINAL iteration. Provide your comprehensive summary:
-
-**Company-wide Summary & Key Drivers:**
-- Synthesize findings into clear, concise summary of trends and sub-trends
-- List KEY DRIVERS (service categories, geographies, populations, providers) with quantified impact
-- Provide ACTIONABLE RECOMMENDATIONS:
-  * Specific trend management initiatives
-  * Affordability opportunities
-  * Areas requiring further investigation
-  * Potential contract negotiations or operational improvements
-
-Begin your final summary with: "FINAL REPORT AND ANALYSIS CONCLUDED"
-
-Include:
-1. Overall trend summary (PMPM change, key metrics)
-2. Top 5 cost drivers with quantified impacts
-3. Recommendations prioritized by ROI potential
-4. Data quality notes or tool limitations encountered
+{phase_prompt}
 """
 
 
@@ -334,12 +313,10 @@ def make_analysis_prompt(iterations: int, current_iteration: int = 1) -> str:
     iteration_overview = f"""
 ITERATION BUDGET OVERVIEW:
 You have {iterations} total iterations. Use them strategically:
-- Iterations 1 to {iterations - 3}: EXPLORATION - drill deep, test hypotheses, save key findings to CSV
-- Iterations {iterations - 2} to {iterations - 1}: SYNTHESIS - organize findings, prepare summary
-- Iteration {iterations}: FINAL - comprehensive summary with recommendations
-
-Never finish early. Premature conclusion before iteration {iterations - 2} is a failure to follow instructions.
-If you think you've exhausted avenues, that means you haven't drilled deep enough - keep exploring!
+- Iteration 1: SCHEMA VALIDATION - confirm dimensions
+- Iteration 2: BASELINE ESTABLISHMENT - high-level trends
+- Iterations 3 to {iterations - 1}: DIAGNOSTIC DRILL-DOWN - isolate drivers
+- Iteration {iterations}: SYNTHESIS - final summary
 
 {phase_guidance}
 """

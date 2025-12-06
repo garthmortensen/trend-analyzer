@@ -13,6 +13,10 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
+
 from agents import function_tool
 
 from ..logging_config import info, debug, error
@@ -369,3 +373,100 @@ Configuration:
     except Exception as e:
         error(f"   Tool error: {str(e)}")
         return f"Error saving query to CSV: {str(e)}"
+
+
+@function_tool
+async def generate_plot_tool(
+    group_by_dimensions: str,
+    filters: str,
+    plot_type: str,
+    x_axis: str,
+    y_axis: str,
+    color_by: str = "",
+    top_n: int = 20,
+    title: str = ""
+) -> str:
+    """
+    Generate a visualization (bar, line, scatter) and save it as an interactive HTML file.
+    
+    Args:
+        group_by_dimensions: Comma-separated dimension names (e.g. "year,channel")
+        filters: JSON string of filter list (e.g. '[{"dimension_name":"year","operator":"=","value":"2024"}]')
+        plot_type: Type of plot: "bar", "line", "scatter", "pie"
+        x_axis: Column name for X axis
+        y_axis: Column name for Y axis
+        color_by: Column name to color/group by (optional)
+        top_n: Limit data points (default 20)
+        title: Plot title
+        
+    Returns:
+        Path to the saved plot file
+    """
+    try:
+        # Parse inputs
+        group_by_list = [d.strip() for d in group_by_dimensions.split(",") if d.strip()]
+        filters_list = json.loads(filters) if filters else []
+        
+        # Build config for data access
+        config_data = {
+            "database": config.get_database_config(),
+            "analyze": {
+                "group_by_dimensions": group_by_list,
+                "filters": filters_list,
+                "top_n": top_n
+            }
+        }
+        
+        result = get_trend_data_from_config(config_data)
+        rows = json.loads(result["data"])
+        
+        if not rows:
+            return "No data returned for plotting."
+            
+        df = pd.DataFrame(rows)
+        
+        # Create plot based on type
+        if plot_type == "bar":
+            fig = px.bar(df, x=x_axis, y=y_axis, color=color_by if color_by else None, title=title)
+        elif plot_type == "line":
+            fig = px.line(df, x=x_axis, y=y_axis, color=color_by if color_by else None, title=title)
+        elif plot_type == "scatter":
+            fig = px.scatter(df, x=x_axis, y=y_axis, color=color_by if color_by else None, title=title)
+        elif plot_type == "pie":
+            fig = px.pie(df, values=y_axis, names=x_axis, title=title)
+        else:
+            return f"Unsupported plot type: {plot_type}"
+            
+        # Save plot
+        run_dir = os.environ.get("TREND_ANALYZER_RUN_DIR")
+        if run_dir:
+            plots_dir = Path(run_dir) / "plots"
+        else:
+            plots_dir = Path("output_plots")
+            
+        plots_dir.mkdir(exist_ok=True)
+        
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename_base = f"plot_{ts}_{plot_type}"
+        
+        html_path = plots_dir / f"{filename_base}.html"
+        
+        fig.write_html(str(html_path))
+        
+        # Save manifest
+        save_tool_manifest(
+            group_by_list, 
+            filters_list, 
+            result.get("sql", ""), 
+            rows, 
+            "generate_plot"
+        )
+        
+        info(f"Plot saved: {html_path}")
+        
+        return f"Plot generated successfully:\nHTML: {html_path}"
+        
+    except Exception as e:
+        error(f"Plot generation failed: {e}")
+        return f"Error generating plot: {str(e)}"
+
